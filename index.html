@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d4937">
+  <title>CANNABIS | カナビス</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <section id="loginView" class="login-screen">
+      <div class="login-brand">
+        <div class="brand-mark large" aria-hidden="true">
+          <svg viewBox="0 0 100 100"><g fill="currentColor">
+            <path d="M50 48 C42 31 43 14 50 3 C57 14 58 31 50 48Z"/>
+            <path d="M47 51 C27 43 15 31 12 19 C27 22 41 34 50 49Z"/>
+            <path d="M53 51 C73 43 85 31 88 19 C73 22 59 34 50 49Z"/>
+            <path d="M46 54 C25 55 10 65 3 76 C20 79 38 70 50 53Z"/>
+            <path d="M54 54 C75 55 90 65 97 76 C80 79 62 70 50 53Z"/>
+            <path d="M48 57 C39 72 39 87 50 98 C61 87 61 72 52 57Z"/>
+            <path d="M49 46 L51 94 L48 94Z"/>
+          </g></svg>
+        </div>
+        <div class="brand-name">CANNABIS</div>
+        <div class="brand-jp">カ ナ ビ ス</div>
+        <p>冷凍設備業務管理システム</p>
+      </div>
+      <div class="login-card">
+        <h1>ログイン</h1>
+        <label for="employeeSelect">社員を選択</label>
+        <select id="employeeSelect">
+          <option value="admin">管理者（デモ）</option>
+          <option value="manager">管理職（デモ）</option>
+          <option value="office">事務担当（デモ）</option>
+          <option value="field">現場担当（デモ）</option>
+        </select>
+        <label for="pinInput">PINコード（仮）</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="4" placeholder="4桁の数字" value="1234">
+        <button id="loginButton" class="primary-btn full">ログインする</button>
+        <p class="demo-note">デモ用PIN：管理者 1234 ／ 管理職 2222 ／ 事務 4444 ／ 現場 3333</p>
+      </div>
+      <div class="login-foot">CANNABIS BUSINESS MANAGEMENT</div>
+    </section>
+
+    <section id="mainView" class="hidden">
+      <header class="topbar">
+        <button class="icon-btn back-btn hidden" id="backButton" aria-label="戻る">‹</button>
+        <div class="top-brand">
+          <span class="brand-mark small"><svg viewBox="0 0 100 100"><g fill="currentColor">
+            <path d="M50 48 C42 31 43 14 50 3 C57 14 58 31 50 48Z"/>
+            <path d="M47 51 C27 43 15 31 12 19 C27 22 41 34 50 49Z"/>
+            <path d="M53 51 C73 43 85 31 88 19 C73 22 59 34 50 49Z"/>
+            <path d="M46 54 C25 55 10 65 3 76 C20 79 38 70 50 53Z"/>
+            <path d="M54 54 C75 55 90 65 97 76 C80 79 62 70 50 53Z"/>
+            <path d="M48 57 C39 72 39 87 50 98 C61 87 61 72 52 57Z"/>
+            <path d="M49 46 L51 94 L48 94Z"/>
+          </g></svg></span>
+          <span>CANNABIS</span>
+        </div>
+        <button class="icon-btn" id="homeButton" aria-label="ホーム">⌂</button>
+      </header>
+
+      <main id="content" class="content"></main>
+
+      <nav class="bottom-nav" aria-label="メインメニュー">
+        <button data-nav="dashboard" class="nav-item active"><span>⌂</span><small>ホーム</small></button>
+        <button data-nav="projects" class="nav-item"><span>▣</span><small>案件</small></button>
+        <button data-nav="schedule" class="nav-item"><span>▦</span><small>予定</small></button>
+        <button data-nav="customers" class="nav-item"><span>♙</span><small>顧客</small></button>
+        <button data-nav="menu" class="nav-item"><span>☰</span><small>メニュー</small></button>
+      </nav>
+    </section>
+    <div id="toast" class="toast" role="status"></div>
+    <dialog id="formDialog" class="form-dialog">
+      <form id="entityForm" method="dialog">
+        <div class="dialog-head"><h2 id="dialogTitle">登録</h2><button type="button" id="closeDialog" class="icon-btn">×</button></div>
+        <div id="dialogFields" class="form-fields"></div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary-btn" id="cancelDialog">キャンセル</button>
+          <button type="submit" class="primary-btn">保存する</button>
+        </div>
+      </form>
+    </dialog>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
