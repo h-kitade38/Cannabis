@@ -1,89 +1,88 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#123d2b">
-<title>CANNABIS | 業務管理</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d4937">
+  <title>CANNABIS | カナビス</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><div class="logo">✿</div><div><b>CANNABIS</b><small>業務管理システム</small></div></div>
-  <div class="user">管理者　<span>●</span></div>
-</header>
-<main>
-  <section class="welcome"><div><p class="eyebrow">DASHBOARD</p><h1>会社の状況</h1><p class="muted">日々の業務と会社の数字を、ひと目で。</p></div><div class="date" id="todayLabel"></div></section>
-
-  <section class="panel menu-panel">
-    <div class="section-head"><div><p class="eyebrow">MENU</p><h2>メインメニュー</h2></div></div>
-    <div class="menu-grid">
-      <button class="menu-tile active" data-target="dashboard"><span>▦</span>ホーム</button>
-      <button class="menu-tile" data-target="schedule"><span>▤</span>スケジュール</button>
-      <button class="menu-tile"><span>▣</span>案件管理</button>
-      <button class="menu-tile"><span>♙</span>顧客管理</button>
-      <button class="menu-tile"><span>▧</span>報告書</button>
-      <button class="menu-tile"><span>¥</span>見積・売掛</button>
-    </div>
-  </section>
-
-  <section class="panel" id="todaySchedule">
-    <div class="section-head"><div><p class="eyebrow">TODAY</p><h2>今日のスケジュール</h2></div><button class="text-button" id="openSchedule">全体を見る　→</button></div>
-    <div class="schedule-list" id="homeSchedule"></div>
-  </section>
-
-  <section class="panel" id="companyStatus">
-    <div class="section-head"><div><p class="eyebrow">MANAGEMENT ACCOUNTING</p><h2>会社の状況｜MQ会計</h2><p class="muted">STRAC表形式・月次</p></div>
-      <label class="month-select">対象月 <input type="month" id="month" value="2026-11"></label>
-    </div>
-    <div class="strac-wrap">
-      <div class="formula">
-        <div class="unitbox">
-          <div class="unit-sales"><small>単価</small><b>P</b><strong id="unitPrice">10</strong></div>
-          <div class="unit-cost"><small>変動費</small><b>V</b><strong id="unitCost">4</strong></div>
-          <div class="unit-margin"><small>粗利</small><b>M</b><strong id="unitMargin">6</strong></div>
+  <div id="app">
+    <section id="loginView" class="login-screen">
+      <div class="login-brand">
+        <div class="brand-mark large" aria-hidden="true">
+          <svg viewBox="0 0 100 100"><g fill="currentColor">
+            <path d="M50 48 C42 31 43 14 50 3 C57 14 58 31 50 48Z"/>
+            <path d="M47 51 C27 43 15 31 12 19 C27 22 41 34 50 49Z"/>
+            <path d="M53 51 C73 43 85 31 88 19 C73 22 59 34 50 49Z"/>
+            <path d="M46 54 C25 55 10 65 3 76 C20 79 38 70 50 53Z"/>
+            <path d="M54 54 C75 55 90 65 97 76 C80 79 62 70 50 53Z"/>
+            <path d="M48 57 C39 72 39 87 50 98 C61 87 61 72 52 57Z"/>
+            <path d="M49 46 L51 94 L48 94Z"/>
+          </g></svg>
         </div>
-        <div class="multiply">×</div>
-        <div class="quantity"><small>数量</small><b>Q</b><strong>10</strong></div>
-        <div class="equals">＝</div>
+        <div class="brand-name">CANNABIS</div>
+        <div class="brand-jp">カ ナ ビ ス</div>
+        <p>冷凍設備業務管理システム</p>
       </div>
-      <div class="strac-chart" role="img" aria-label="売上高100、変動費40、粗利60、固定費50、利益10のSTRAC図">
-        <div class="chart-sales"><div><span>売上高</span><b>P×Q</b><strong id="pq">100</strong></div><i id="salesRatio">100%</i></div>
-        <div class="chart-variable"><div><span>変動費</span><b>V×Q</b><strong id="vq">40</strong></div><i>40%</i></div>
-        <div class="chart-margin"><div><span>粗利</span><b>M×Q</b><strong id="mq">60</strong><i>60%</i></div></div>
-        <div class="chart-fixed"><div><span>固定費</span><b>F</b><strong id="fixed">50</strong></div></div>
-        <div class="chart-profit"><span>利益 G</span><b id="profit">10</b></div>
+      <div class="login-card">
+        <h1>ログイン</h1>
+        <label for="employeeSelect">社員を選択</label>
+        <select id="employeeSelect">
+          <option value="admin">管理者（デモ）</option>
+          <option value="manager">管理職（デモ）</option>
+          <option value="office">事務担当（デモ）</option>
+          <option value="field">現場担当（デモ）</option>
+        </select>
+        <label for="pinInput">PINコード（仮）</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="4" placeholder="4桁の数字" value="1234">
+        <button id="loginButton" class="primary-btn full">ログインする</button>
+        <p class="demo-note">デモ用PIN：管理者 1234 ／ 管理職 2222 ／ 事務 4444 ／ 現場 3333</p>
       </div>
-    </div>
-    <div class="strac-legend">
-      <span><i class="c-sales"></i>売上高 PQ</span><span><i class="c-variable"></i>変動費 VQ</span><span><i class="c-margin"></i>粗利 MQ</span><span><i class="c-fixed"></i>固定費 F</span><span><i class="c-profit"></i>利益 G</span>
-    </div>
-    <div class="figures">
-      <div><small>PQ − VQ</small><b>MQ = <span id="mq2">60</span></b></div>
-      <div><small>MQ − F</small><b>G = <span id="profit2">10</span></b></div>
-      <div><small>MQ ÷ PQ</small><b>MQ率 = <span id="mqRate">60%</span></b></div>
-    </div>
-    <p class="note">※画面の数値はレイアウト確認用のサンプル。実運用時は売上・変動費・固定費の登録データから月次集計します。</p>
-  </section>
+      <div class="login-foot">CANNABIS BUSINESS MANAGEMENT</div>
+    </section>
 
-  <section class="panel hidden" id="schedulePage">
-    <div class="section-head"><div><p class="eyebrow">SCHEDULE</p><h2>スケジュール</h2><p class="muted">作業開始日を基準に表示。24時を超える予定も同じ日の予定として扱います。</p></div></div>
-    <div class="toolbar"><label>作業日 <input type="date" id="workDate" value="2026-11-20"></label><label>表示範囲 <select id="range"><option value="8">8:00〜30:00</option><option value="0">0:00〜30:00</option><option value="16">16:00〜32:00</option></select></label></div>
-    <div class="type-legend"><span class="day">日中作業</span><span class="after">閉店後作業</span><span class="holiday">休日出勤</span></div>
-    <div class="timeline-scroll"><div id="timeline" class="timeline"></div></div>
-    <div class="schedule-entry">
-      <h3>予定を追加（デモ）</h3>
-      <div class="entry-grid">
-        <label>案件名<input id="job" value="冷凍ショーケース点検"></label>
-        <label>担当者<select id="staff"><option>山田</option><option>佐藤</option><option>鈴木</option><option>田中</option></select></label>
-        <label>勤務区分<select id="workType"><option>日中作業</option><option>閉店後作業</option><option>休日出勤</option></select></label>
-        <label>開始時刻（例 20:00）<input id="startTime" value="20:00" placeholder="20:00"></label>
-        <label>終了時刻（例 26:00）<input id="endTime" value="26:00" placeholder="26:00"></label>
-        <button id="addEvent" class="primary">予定を追加</button>
-      </div>
-      <p class="note">時刻は 0:00〜47:59 で入力できます。例：翌日の午前2時は「26:00」と入力します。「深夜2時」「翌2:00」とは表示しません。</p>
-    </div>
-  </section>
-</main>
-<footer>CANNABIS <span>Prototype v0.2</span></footer>
-<script src="app.js"></script>
-</body></html>
+    <section id="mainView" class="hidden">
+      <header class="topbar">
+        <button class="icon-btn back-btn hidden" id="backButton" aria-label="戻る">‹</button>
+        <div class="top-brand">
+          <span class="brand-mark small"><svg viewBox="0 0 100 100"><g fill="currentColor">
+            <path d="M50 48 C42 31 43 14 50 3 C57 14 58 31 50 48Z"/>
+            <path d="M47 51 C27 43 15 31 12 19 C27 22 41 34 50 49Z"/>
+            <path d="M53 51 C73 43 85 31 88 19 C73 22 59 34 50 49Z"/>
+            <path d="M46 54 C25 55 10 65 3 76 C20 79 38 70 50 53Z"/>
+            <path d="M54 54 C75 55 90 65 97 76 C80 79 62 70 50 53Z"/>
+            <path d="M48 57 C39 72 39 87 50 98 C61 87 61 72 52 57Z"/>
+            <path d="M49 46 L51 94 L48 94Z"/>
+          </g></svg></span>
+          <span>CANNABIS</span>
+        </div>
+        <button class="icon-btn" id="homeButton" aria-label="ホーム">⌂</button>
+      </header>
+
+      <main id="content" class="content"></main>
+
+      <nav class="bottom-nav" aria-label="メインメニュー">
+        <button data-nav="dashboard" class="nav-item active"><span>⌂</span><small>ホーム</small></button>
+        <button data-nav="projects" class="nav-item"><span>▣</span><small>案件</small></button>
+        <button data-nav="schedule" class="nav-item"><span>▦</span><small>予定</small></button>
+        <button data-nav="customers" class="nav-item"><span>♙</span><small>顧客</small></button>
+        <button data-nav="menu" class="nav-item"><span>☰</span><small>メニュー</small></button>
+      </nav>
+    </section>
+    <div id="toast" class="toast" role="status"></div>
+    <dialog id="formDialog" class="form-dialog">
+      <form id="entityForm" method="dialog">
+        <div class="dialog-head"><h2 id="dialogTitle">登録</h2><button type="button" id="closeDialog" class="icon-btn">×</button></div>
+        <div id="dialogFields" class="form-fields"></div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary-btn" id="cancelDialog">キャンセル</button>
+          <button type="submit" class="primary-btn">保存する</button>
+        </div>
+      </form>
+    </dialog>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
