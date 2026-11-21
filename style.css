@@ -24,3 +24,14 @@
 .strac-fixed input{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:10px;font:inherit;font-size:13px}
 .strac-foot{font-size:10px;color:var(--muted);text-align:right;margin:8px 2px}
 @media(min-width:700px){.strac-figure svg{min-width:0;max-height:620px}.strac-values{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+/* Annual fixed-cost settings */
+.settings-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(15,55,39,.025)}
+.settings-year-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;font-weight:800;color:var(--green);margin-bottom:16px}
+.settings-year-row input{width:100px;border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;color:var(--ink);text-align:right}
+.settings-field{display:block;font-size:12px;font-weight:700;color:#58645d}
+.settings-field input{display:block;width:100%;box-sizing:border-box;margin-top:7px;border:1px solid var(--line);border-radius:10px;padding:13px;font:inherit;font-size:16px;color:var(--ink)}
+.settings-preview{display:flex;justify-content:space-between;align-items:center;background:#f0f5f1;border-radius:11px;padding:13px;margin-top:14px;color:var(--green)}
+.settings-preview span{font-size:12px;font-weight:700}.settings-preview strong{font-size:17px;font-variant-numeric:tabular-nums}
+.settings-note{font-size:11px;line-height:1.7;color:var(--muted);margin-top:12px}
+.strac-figure svg{min-width:0}

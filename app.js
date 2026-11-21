@@ -44,7 +44,8 @@ const initialData = {
     {id:2,date:"2026-11-20",time:"13:00",title:"打ち合わせ",site:"本社",person:"山田 太郎",project:"社内打ち合わせ"},
     {id:3,date:"2026-11-21",time:"10:00",title:"定期点検",site:"神戸市東灘区",person:"山田 太郎",project:"神戸市 冷凍機定期点検"}
   ],
-  financeByMonth:{}
+  financeByMonth:{},
+  annualFixedCostByYear:{}
 };
 let db = loadDB();
 let currentUser = null;
@@ -59,7 +60,7 @@ function loadDB(){
  try{
   const stored=JSON.parse(localStorage.getItem(STORAGE_KEY));
   if(!stored)return structuredClone(initialData);
-  return {...structuredClone(initialData),...stored,financeByMonth:stored.financeByMonth||{}};
+  return {...structuredClone(initialData),...stored,financeByMonth:stored.financeByMonth||{},annualFixedCostByYear:stored.annualFixedCostByYear||{}};
  }catch{return JSON.parse(JSON.stringify(initialData))}
 }
 function saveDB(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
@@ -159,7 +160,7 @@ function navActive(page){$$(".nav-item").forEach(b=>b.classList.toggle("active",
 function render(page){
   currentPage=page;searchTerm="";navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail"].includes(page));
   const content=$("#content");
-  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,customers:customersPage,analytics:analyticsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
+  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,customers:customersPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
   if(pages[page])content.innerHTML=pages[page]();
   else content.innerHTML=comingSoonPage(page);
   bindPageEvents();
@@ -200,63 +201,87 @@ function projectsPage(){
 }
 function yenShort(n){return Number(n||0).toLocaleString("ja-JP")}
 function stracSvg(pq,vq,mq,f,g){
- const W=700,H=500,left=220,rightW=W-left,top=24,bottom=top+H;
- const safePQ=Math.max(0,Number(pq)||0), safeVQ=Math.max(0,Number(vq)||0), safeMQ=safePQ-safeVQ;
- if(safePQ<=0){return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="STRAC図"><text x="350" y="245" text-anchor="middle" fill="#77847b" font-size="22">PQ=0</text></svg>`}
- const scale=H/safePQ, vH=Math.max(0,Math.min(H,safeVQ*scale)), mH=Math.max(0,H-vH), base=top+vH+mH;
- const x0=left, mid=x0+rightW*.50, x1=W;
- const fH=Math.max(0,Number(f)||0)*scale;
- const fBottom=top+vH+fH;
- const fmt=n=>yenShort(n);
- const ratioV=safeVQ/safePQ*100, ratioM=safeMQ/safePQ*100;
- const label=(x,y,t,size=24,weight=500)=>`<text x="${x}" y="${y}" text-anchor="middle" font-size="${size}" font-weight="${weight}" fill="#17251e">${t}</text>`;
- let parts=[];
- parts.push(`<svg viewBox="0 0 ${W} ${top+H+Math.max(44,(fBottom-bottom)) + 20}" role="img" aria-label="STRAC図 PQ ${fmt(pq)} VQ ${fmt(vq)} MQ ${fmt(mq)} F ${fmt(f)} G ${fmt(g)}" xmlns="http://www.w3.org/2000/svg">`);
- parts.push(`<rect x="${left}" y="${top}" width="${rightW}" height="${vH}" fill="#d8d8d8" stroke="#858585" stroke-width="4"/>`);
- parts.push(`<rect x="${left}" y="${top+vH}" width="${rightW*.5}" height="${mH}" fill="#c4dfb5" stroke="#858585" stroke-width="4"/>`);
- // Fixed-cost block is aligned to the contribution-margin top. Its lower edge defines the G baseline.
- const fY=top+vH;
- const fRectH=fH;
- parts.push(`<rect x="${mid}" y="${fY}" width="${rightW*.5}" height="${fRectH}" fill="#f9e2d2" stroke="#858585" stroke-width="4"/>`);
- // PQ vertical column
- parts.push(`<rect x="0" y="${top}" width="${left}" height="${H}" fill="#b6c9e8" stroke="#858585" stroke-width="4"/>`);
- // G area: positive is below F and within MQ; negative protrudes below the MQ baseline.
- if(g>=0){
-   const gh=Math.max(0,g*scale);
-   parts.push(`<rect x="${mid}" y="${fBottom}" width="${rightW*.5}" height="${gh}" fill="#ffe18c" stroke="#858585" stroke-width="4"/>`);
- }else{
-   // The F block itself protrudes below the contribution-margin baseline; G is labeled in that protrusion.
+ // 元図の比率と配置を維持：PQ列／右上VQ／左下MQ／右下FとG。
+ const W=760, H=440, top=28, pqW=235, chartX=pqW, chartW=500;
+ const innerW=chartW, half=innerW/2, splitX=chartX+half;
+ const safePQ=Math.max(0,Number(pq)||0);
+ const safeVQ=Math.max(0,Math.min(safePQ,Number(vq)||0));
+ const safeMQ=Math.max(0,safePQ-safeVQ);
+ const safeF=Math.max(0,Number(f)||0);
+ const safeG=safeMQ-safeF;
+ const fmt=yenShort;
+ const label=(x,y,t,size=25,weight=500,fill="#17251e")=>`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${size}" font-weight="${weight}" fill="${fill}">${t}</text>`;
+ if(safePQ<=0){
+   return `<svg viewBox="0 0 ${W} 500" role="img" aria-label="STRAC図 PQ 0" xmlns="http://www.w3.org/2000/svg"><text x="380" y="250" text-anchor="middle" fill="#77847b" font-size="22">PQ 0</text></svg>`;
  }
- // Baseline at the end of the contribution-margin area.
- parts.push(`<line x1="${left}" y1="${bottom}" x2="${W}" y2="${bottom}" stroke="#454545" stroke-width="3" stroke-dasharray="7 5"/>`);
- parts.push(label(left/2,top+H*.22,"PQ",31,600));
- parts.push(label(left/2,top+H*.22+42,fmt(pq),27,500));
- parts.push(label(left+rightW/2,top+vH*.52,"VQ  "+fmt(vq),29,500));
- parts.push(label(left+rightW*.25,top+vH+mH*.53,"MQ  "+fmt(mq),29,500));
- const fLabelY=Math.min(fBottom-18, fY+Math.max(42,fRectH*.52));
- parts.push(label(mid+rightW*.25,fLabelY,"F  "+fmt(f),27,500));
- if(g>=0){parts.push(label(mid+rightW*.25,Math.min(bottom-8,fBottom+Math.max(26,(g*scale)*.58)),"G  "+fmt(g),24,600));}
- else {parts.push(label(mid+rightW*.25,bottom+Math.max(25,Math.abs(g)*scale*.55),"G  "+fmt(g),24,700));}
- // Ratio callouts along the PQ / VQ-MQ boundary.
- const circleY1=top+vH*.55, circleY2=top+vH+mH*.72;
- parts.push(`<circle cx="${left}" cy="${circleY1}" r="43" fill="#f7f7f7" stroke="#858585" stroke-width="4"/>${label(left,circleY1+9,ratioV.toFixed(1).replace(/\\.0$/,'')+"%",25)}`);
- parts.push(`<circle cx="${left}" cy="${circleY2}" r="43" fill="#f7f7f7" stroke="#858585" stroke-width="4"/>${label(left,circleY2+9,ratioM.toFixed(1).replace(/\\.0$/,'')+"%",25)}`);
+ const scale=H/safePQ;
+ const vH=safeVQ*scale, mH=safeMQ*scale, fH=safeF*scale;
+ const baseline=top+H;
+ const negativeH=Math.max(0,-safeG*scale);
+ const bottom=baseline+negativeH;
+ const viewH=bottom+36;
+ const ratioV=safeVQ/safePQ*100, ratioM=safeMQ/safePQ*100;
+ const parts=[`<svg viewBox="0 0 ${W} ${viewH}" role="img" aria-label="STRAC図 PQ ${fmt(safePQ)} VQ ${fmt(safeVQ)} MQ ${fmt(safeMQ)} F ${fmt(safeF)} G ${fmt(safeG)}" xmlns="http://www.w3.org/2000/svg">`];
+ // PQ column
+ parts.push(`<rect x="0" y="${top}" width="${pqW}" height="${H}" fill="#b6c9e8" stroke="#858585" stroke-width="4"/>`);
+ // VQ block: upper-right, proportional height
+ if(vH>0) parts.push(`<rect x="${chartX}" y="${top}" width="${chartW}" height="${vH}" fill="#d8d8d8" stroke="#858585" stroke-width="4"/>`);
+ // MQ block: lower-left, proportional height
+ if(mH>0) parts.push(`<rect x="${chartX}" y="${top+vH}" width="${half}" height="${mH}" fill="#c4dfb5" stroke="#858585" stroke-width="4"/>`);
+ // F occupies the lower-right from the MQ top. If loss, it extends below the PQ baseline.
+ if(fH>0) parts.push(`<rect x="${splitX}" y="${top+vH}" width="${half}" height="${fH}" fill="#f9e2d2" stroke="#858585" stroke-width="4"/>`);
+ // Positive G is the remaining part within MQ; negative G is the protruding part of F below baseline.
+ if(safeG>0){
+   const gh=safeG*scale;
+   parts.push(`<rect x="${splitX}" y="${baseline-gh}" width="${half}" height="${gh}" fill="#ffe18c" stroke="#858585" stroke-width="4"/>`);
+ }else if(safeG<0){
+   parts.push(`<line x1="${chartX}" y1="${baseline}" x2="${chartX+chartW}" y2="${baseline}" stroke="#454545" stroke-width="3" stroke-dasharray="8 6"/>`);
+ }
+ // Outer outline of the right-hand STRAC panel and baseline
+ parts.push(`<rect x="${chartX}" y="${top}" width="${chartW}" height="${H}" fill="none" stroke="#858585" stroke-width="4"/>`);
+ if(safeG<0) parts.push(`<line x1="${chartX}" y1="${baseline}" x2="${chartX+chartW}" y2="${baseline}" stroke="#454545" stroke-width="3" stroke-dasharray="8 6"/>`);
+ // Main labels
+ parts.push(label(pqW/2,top+H*.25,"PQ",31,600));
+ parts.push(label(pqW/2,top+H*.25+43,fmt(safePQ),28,500));
+ if(vH>48) parts.push(label(chartX+chartW/2,top+vH*.52,`VQ　${fmt(safeVQ)}`,27,500));
+ if(mH>48) parts.push(label(chartX+half/2,top+vH+mH*.52,`MQ　${fmt(safeMQ)}`,27,500));
+ const fMainH=Math.min(fH,mH);
+ if(fMainH>50) parts.push(label(splitX+half/2,top+vH+fMainH*.48,`F　${fmt(safeF)}`,27,500));
+ if(safeG>0 && safeG*scale>34) parts.push(label(splitX+half/2,baseline-(safeG*scale)/2,`G　${fmt(safeG)}`,24,600));
+ if(safeG<0 && negativeH>20) parts.push(label(splitX+half/2,baseline+negativeH/2,`G　${fmt(safeG)}`,24,700,"#8f2525"));
+ // Percent callouts along PQ / right-panel boundary, matching the supplied reference.
+ const r=31;
+ if(vH>r*2) parts.push(`<circle cx="${chartX}" cy="${top+vH/2}" r="${r}" fill="#f7f7f7" stroke="#858585" stroke-width="3"/>${label(chartX,top+vH/2+1,`${ratioV.toFixed(0)}%`,22)}`);
+ if(mH>r*2) parts.push(`<circle cx="${chartX}" cy="${top+vH+mH*.72}" r="${r}" fill="#f7f7f7" stroke="#858585" stroke-width="3"/>${label(chartX,top+vH+mH*.72+1,`${ratioM.toFixed(0)}%`,22)}`);
  parts.push('</svg>');
  return parts.join('');
 }
+function getAnnualFixedCost(year){return Number(db.annualFixedCostByYear?.[String(year)]||0)}
 function analyticsPage(){
  const month=selectedFinanceMonth;
- const monthly=db.financeByMonth[month]||{fixedCost:0};
- const booked=db.projects.filter(p=>p.salesProcessed===true && (p.salesMonth||'')===month);
+ const year=month.slice(0,4);
+ // PQ/VQ are included immediately when entered for the selected sales month.
+ // Sales-processing status is a separate workflow flag and does not hide entered figures.
+ const currentMonth=new Date().toISOString().slice(0,7);
+ const booked=db.projects.filter(p=>p.salesMonth===month||(!p.salesMonth&&month===currentMonth&&(Number(p.pq||0)!==0||Number(p.vq||0)!==0)));
  const pq=booked.reduce((sum,p)=>sum+Number(p.pq||0),0);
  const vq=booked.reduce((sum,p)=>sum+Number(p.vq||0),0);
- const mq=pq-vq, f=Number(monthly.fixedCost||0), g=mq-f;
+ const mq=pq-vq, annualF=getAnnualFixedCost(year), f=annualF/12, g=mq-f;
  return `<h1 class="page-title">STRAC</h1>
  <div class="strac-toolbar"><input id="financeMonth" type="month" value="${esc(month)}" aria-label="対象月"><span class="strac-count">${booked.length}件</span></div>
  <div class="strac-figure">${stracSvg(pq,vq,mq,f,g)}</div>
  <div class="strac-values"><div><span>PQ</span><strong>${money(pq)}</strong></div><div><span>VQ</span><strong>${money(vq)}</strong></div><div><span>MQ</span><strong>${money(mq)}</strong></div><div><span>F</span><strong>${money(f)}</strong></div><div><span>G</span><strong class="${g<0?'negative':''}">${money(g)}</strong></div></div>
- <div class="strac-fixed"><label for="fixedCostInput">F</label><input id="fixedCostInput" type="number" min="0" step="1" inputmode="numeric" value="${esc(f)}"><button class="small-primary" id="saveFixedCost">保存</button></div>
  <p class="strac-foot">${booked.length}件</p>`;
+}
+function settingsPage(){
+ const year=selectedFinanceMonth.slice(0,4);
+ const annualF=getAnnualFixedCost(year);
+ return `<h1 class="page-title">設定</h1><p class="page-subtitle">年間固定費の設定</p>
+ <section class="settings-card"><div class="settings-year-row"><strong>対象年度</strong><input id="settingsYear" type="number" min="2020" max="2100" step="1" value="${esc(year)}" aria-label="設定対象年">年</div>
+ <label class="settings-field" for="annualFixedCostInput">年間固定費（円）<input id="annualFixedCostInput" type="number" min="0" step="1" inputmode="numeric" value="${annualF}"></label>
+ <div class="settings-preview"><span>月額 F</span><strong>${money(annualF/12)}</strong></div>
+ <button class="primary-btn full" id="saveAnnualFixedCost">保存する</button></section>
+ <p class="settings-note">設定した年間固定費を12で割り、該当年の各月のSTRACに適用します。</p>`;
 }
 function customersPage(){
  const filtered=db.customers.filter(c=>[c.name,c.person,c.address,c.tel].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
@@ -287,7 +312,8 @@ function bindPageEvents(){
  $("#addCustomer")?.addEventListener("click",()=>openCustomerForm());
  $("#addSchedule")?.addEventListener("click",()=>openScheduleForm());
  $("#financeMonth")?.addEventListener("change",e=>{selectedFinanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("analytics")});
- $("#saveFixedCost")?.addEventListener("click",()=>{const value=Number($("#fixedCostInput").value||0);if(value<0){toast("Fは0以上で入力してください");return}db.financeByMonth[selectedFinanceMonth]={...(db.financeByMonth[selectedFinanceMonth]||{}),fixedCost:value};saveDB();toast("Fを保存しました");render("analytics")});
+ $("#settingsYear")?.addEventListener("change",e=>{const y=String(e.target.value||new Date().getFullYear()).slice(0,4);selectedFinanceMonth=`${y}-01`;render("settings")});
+ $("#saveAnnualFixedCost")?.addEventListener("click",()=>{const value=Number($("#annualFixedCostInput").value||0);if(value<0||!Number.isFinite(value)){toast("年間固定費を正しく入力してください");return}const year=selectedFinanceMonth.slice(0,4);db.annualFixedCostByYear=db.annualFixedCostByYear||{};db.annualFixedCostByYear[year]=value;saveDB();toast(`${year}年の年間固定費を保存しました`);render("settings")});
  $("#searchBox")?.addEventListener("input",e=>{searchTerm=e.target.value;const y=window.scrollY;render(currentPage);const input=$("#searchBox");input.focus();input.setSelectionRange(input.value.length,input.value.length);window.scrollTo(0,y)});
  $$("[data-filter]").forEach(b=>b.addEventListener("click",()=>{projectFilter=b.dataset.filter;render("projects")}));
  $$("[data-detail-project]").forEach(b=>b.addEventListener("click",()=>{window.selectedId=b.dataset.detailProject;render("projectDetail")}));
@@ -317,12 +343,12 @@ function openProjectForm(id){
   {key:"status",label:"進捗状況",type:"select",options:["予定","進行中","完了"],default:"予定"},
   {key:"date",label:"作業予定日",type:"date"},{key:"person",label:"担当者",default:currentUser.name},
   {key:"amount",label:"見積・受注金額",type:"number",default:0},
-  {key:"salesMonth",label:"売上計上月",type:"month"},
+  {key:"salesMonth",label:"売上計上月",type:"month",required:true,default:p?.salesMonth||p?.date?.slice(0,7)||new Date().toISOString().slice(0,7)},
   {key:"pq",label:"PQ（売上金額）",type:"number",default:0},
   {key:"vq",label:"VQ（案件原価）",type:"number",default:0},
   {key:"salesProcessed",label:"売上処理",type:"select",options:["未処理","処理済"],default:"未処理"},
   {key:"notes",label:"備考",type:"textarea"}
- ],p?{...p,salesProcessed:p.salesProcessed?"処理済":"未処理"}:null,data=>{const item={...data,id:p?.id||Date.now(),amount:Number(data.amount||0),pq:Number(data.pq||0),vq:Number(data.vq||0),salesProcessed:data.salesProcessed==="処理済"};if(p)db.projects=db.projects.map(x=>x.id===p.id?item:x);else db.projects.unshift(item);saveDB();$("#formDialog").close();toast(p?"案件を更新しました":"案件を登録しました");render(p&&currentPage==="projectDetail"?"projectDetail":"projects")});
+ ],p?{...p,salesProcessed:p.salesProcessed?"処理済":"未処理"}:null,data=>{const item={...data,id:p?.id||Date.now(),amount:Number(data.amount||0),pq:Number(data.pq||0),vq:Number(data.vq||0),salesMonth:data.salesMonth||p?.salesMonth||p?.date?.slice(0,7)||new Date().toISOString().slice(0,7),salesProcessed:data.salesProcessed==="処理済"};if(p)db.projects=db.projects.map(x=>x.id===p.id?item:x);else db.projects.unshift(item);saveDB();$("#formDialog").close();toast(p?"案件を更新しました":"案件を登録しました");render(p&&currentPage==="projectDetail"?"projectDetail":"projects")});
 }
 function openCustomerForm(id){
  if(!canEdit()){toast("編集権限がありません");return}
