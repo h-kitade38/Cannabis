@@ -393,7 +393,7 @@ function openDialog(title,fields,record,onSave){
  editing={record,onSave};$("#dialogTitle").textContent=title;$("#dialogFields").innerHTML=fields.map(f=>fieldHTML(f,record?.[f.key])).join("");$("#formDialog").showModal();
 }
 function fieldHTML(f,value){const v=value??f.default??"";let input;
- if(f.type==="time4"){const digits=String(v).replace(/\D/g,"");input=`<input name="${f.key}" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例：1900" value="${esc(digits)}" required>`}
+ if(f.type==="time4"){const digits=String(v).replace(/\D/g,"");input=`<input name="${f.key}" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例：1900" value="${esc(digits)}">`}
  else if(f.type==="textarea")input=`<textarea name="${f.key}" ${f.required?"required":""}>${esc(v)}</textarea>`;
  else if(f.type==="select")input=`<select name="${f.key}">${f.options.map(o=>`<option ${o===v?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
  else input=`<input name="${f.key}" type="${f.type||"text"}" value="${esc(v)}" ${f.required?"required":""} ${f.step?`step="${f.step}"`:""}>`;
@@ -447,6 +447,15 @@ function openScheduleForm(id){
    if(old)db.schedules=db.schedules.map(x=>x.id===old.id?item:x);else db.schedules.push(item);
    saveDB();selectedScheduleDate=item.date;selectedScheduleMonth=item.date.slice(0,7);$("#formDialog").close();toast(old?"予定を更新しました":"予定を追加しました");render("schedule");
  });
+ const dialogFields=$("#dialogFields"),allDaySelect=dialogFields.querySelector('[name="allDay"]');
+ const toggleTimeFields=()=>{const hide=allDaySelect?.value==="終日";["time","endTime"].forEach(key=>{const input=dialogFields.querySelector(`[name="${key}"]`);if(input){input.closest("label").style.display=hide?"none":"";input.required=!hide;}})};
+ allDaySelect?.addEventListener("change",toggleTimeFields);toggleTimeFields();
+ if(old&&canEdit()){
+   const actions=$("#formDialog .dialog-actions");
+   const del=document.createElement("button");del.type="button";del.className="text-btn danger";del.textContent="削除";
+   del.addEventListener("click",()=>{if(confirm("この予定を削除しますか？")){deleteSchedule(old.id);$("#formDialog").close();}});
+   actions.insertBefore(del,actions.firstChild);
+ }
 }
 function deleteProject(id){if(!confirm("この案件を削除しますか？"))return;db.projects=db.projects.filter(x=>x.id!==id);saveDB();toast("案件を削除しました");render("projects")}
 function deleteSchedule(id){if(!confirm("この予定を削除しますか？"))return;db.schedules=db.schedules.filter(x=>x.id!==id);saveDB();toast("予定を削除しました");render("schedule")}
