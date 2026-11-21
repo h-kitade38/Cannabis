@@ -35,3 +35,56 @@
 .settings-preview span{font-size:12px;font-weight:700}.settings-preview strong{font-size:17px;font-variant-numeric:tabular-nums}
 .settings-note{font-size:11px;line-height:1.7;color:var(--muted);margin-top:12px}
 .strac-figure svg{min-width:0}
+
+/* Phase 1: project flow board */
+.kanban-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;overflow-x:auto;padding-bottom:8px;align-items:start}
+.kanban-column{min-width:210px;background:#f3f6f3;border:1px solid var(--line);border-radius:14px;padding:9px}
+.kanban-column>header{display:flex;align-items:center;justify-content:space-between;padding:4px 3px 10px;font-size:13px;color:var(--green)}
+.kanban-column>header b{display:grid;place-items:center;min-width:27px;height:27px;border-radius:20px;background:#fff;font-size:13px}
+.kanban-cards{display:flex;flex-direction:column;gap:8px}
+.kanban-card{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.kanban-card>strong{font-size:12px;line-height:1.45}.kanban-card>small{font-size:10px;color:var(--muted)}
+.kanban-card-actions{display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin-top:5px}
+.kanban-card-actions button{font-size:10px;padding:5px 3px}.kanban-card-actions button:disabled{opacity:.35}
+.prep-checks{display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%;padding:7px;background:#f5f7f5;border-radius:8px}
+.prep-checks label{font-size:10px;display:flex;align-items:center;gap:4px}.prep-checks input{accent-color:var(--green)}
+.kanban-empty{font-size:10px;color:var(--muted);text-align:center;padding:18px 4px}
+.kanban-material{background:#eef3f7}.kanban-wip{background:#f6f2e8}.kanban-goods{background:#edf4ed}
+@media(max-width:600px){.kanban-board{grid-template-columns:repeat(3,minmax(205px,1fr));margin-right:-16px;padding-right:16px}}
+
+/* Phase 1: three schedule views */
+.schedule-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.view-switch{display:flex;gap:3px;background:#eaf0eb;padding:3px;border-radius:11px;min-width:0}
+.view-switch button{padding:8px 9px;border-radius:8px;background:transparent;color:#68756c;font-size:10px;white-space:nowrap}
+.view-switch button.active{background:#fff;color:var(--green);font-weight:800;box-shadow:0 1px 4px #183d2c18}
+.schedule-date-control{display:flex;align-items:center;gap:7px;margin-bottom:13px}
+.schedule-date-control>button{width:32px;height:34px;border-radius:9px;background:#edf2ee;color:var(--green);font-size:20px}
+.schedule-date-control input[type=date]{min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px;font:inherit;font-size:12px;background:#fff}
+.schedule-date-control label{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);white-space:nowrap}
+.schedule-date-control label input{accent-color:var(--green)}
+.gantt-legend{display:flex;align-items:center;gap:12px;margin:5px 0 10px;font-size:10px;color:var(--muted)}
+.gantt-legend span{display:flex;align-items:center;gap:5px}.gantt-legend i{display:inline-block;width:10px;height:10px;border-radius:3px}.legend-working{background:#dceee1}.legend-away{background:#e3e5e4}.gantt-legend small{margin-left:auto;font-size:9px}
+.gantt-wrap{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:13px;padding:8px 0;box-shadow:0 2px 8px rgba(15,55,39,.025)}
+.gantt-inner{min-width:780px}
+.gantt-head,.gantt-row{display:grid;grid-template-columns:112px minmax(0,1fr);min-height:48px}
+.gantt-head{min-height:32px;border-bottom:1px solid var(--line)}
+.gantt-name{position:relative;display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-right:1px solid var(--line);font-size:11px;font-weight:700;background:#f8faf8;gap:4px}
+.gantt-name.is-working{background:#dceee1;color:#205b3b}.gantt-name.is-away{background:#e5e7e6;color:#858b87}
+.gantt-head .gantt-name{color:var(--muted);background:#fff}
+.gantt-track{position:relative;min-width:0;background-image:linear-gradient(to right,#edf1ed 1px,transparent 1px);background-size:4.54545% 100%}
+.gantt-head .gantt-track span{position:absolute;top:8px;transform:translateX(-50%);font-size:9px;color:var(--muted);white-space:nowrap}
+.gantt-track>i{position:absolute;top:0;bottom:0;border-left:1px solid #e8ede9;pointer-events:none}
+.gantt-row{border-bottom:1px solid #eff2ef}.gantt-row:last-child{border-bottom:0}
+.gantt-bar{position:absolute;top:9px;height:29px;border-radius:6px;background:#347a58;color:#fff;font-size:9px;font-weight:700;padding:0 5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;z-index:1}
+.presence-toggle{font-size:8px;padding:3px 4px;border-radius:5px;background:#ffffffa8;color:inherit;white-space:nowrap}
+.month-calendar{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.month-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;color:var(--green)}
+.month-heading button{padding:5px 12px;font-size:18px}
+.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.month-grid>b{text-align:center;font-size:10px;color:var(--muted);padding:5px 0}
+.month-empty{min-height:52px}
+.month-day{min-height:52px;border:1px solid #edf1ed;border-radius:8px;background:#fafcfb;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:6px 2px;color:var(--ink);gap:5px}
+.month-day span{font-size:11px}.month-day i{font-style:normal;font-size:8px;color:var(--green);background:#e7f1ea;border-radius:10px;padding:2px 5px}
+.month-day.selected{border:2px solid var(--green);background:#eef5ef}.month-day.selected span{font-weight:800;color:var(--green)}
+@media(min-width:700px){.kanban-board{overflow:visible}.kanban-column{min-width:0}.gantt-inner{min-width:900px}}
+.dashboard-schedule{display:flex;flex-direction:column;gap:7px}.dashboard-schedule-row{display:grid;grid-template-columns:100px minmax(0,1fr);gap:4px 9px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px}.dashboard-schedule-row strong{font-size:11px;color:var(--green);font-variant-numeric:tabular-nums}.dashboard-schedule-row span{font-size:11px;font-weight:700}.dashboard-schedule-row small{grid-column:2;font-size:9px;color:var(--muted)}

@@ -97,3 +97,25 @@ Firebase Web設定のapiKey等はWebアプリで公開される前提の設定�
 - 図中の表記はPQ / VQ / MQ / F / Gに統一しています。
 
 ※このバージョンも業務データの保存先は端末内localStorageです。複数端末・複数社員間の同期はまだ実装していません。
+
+---
+
+## v0.4 Phase 1 update (2026-11-21)
+
+### Implemented
+- Project flow board with three columns: ①材料 / ②仕掛品 / ③商品.
+- New projects enter ①材料. A project can move to ②仕掛品 after estimate approval.
+- ②仕掛品 requires all three preparation checks (application documents, schedule coordination, staffing coordination) before moving to ③商品.
+- Projects marked work-completed and sales-processed leave the active board but remain stored in local data.
+- Schedule has three views: daily list, employee-row timeline (default), and monthly calendar.
+- Schedule records now include start and end times. Times beyond midnight can be entered as 25:00, 26:00, etc.; the work date remains the start date.
+- Dashboard shows today's schedule as one row per record.
+- Timeline shows employees vertically and time horizontally from 08:00 to 30:00. Presence highlight is currently a local prototype toggle, not yet connected to attendance records.
+- STRAC monetary values and percentages are rounded to integers; no decimal places are displayed. Negative G remains negative and extends below the baseline.
+
+### Not implemented yet / limitations
+- Project, schedule, attendance, and STRAC business data are still stored in browser localStorage. They are not shared across devices or employees.
+- Employee rows are currently inferred from the logged-in user and names appearing in schedule records. There is not yet a full employee master or internal/field staff classification.
+- Presence highlight is manually toggled for prototype testing; it is not actual attendance integration.
+- Role and page-level permission management remains deferred as requested.
+- No production readiness claim: test with sample data before using for real operations.

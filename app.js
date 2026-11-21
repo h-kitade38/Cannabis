@@ -55,6 +55,10 @@ let projectFilter = "すべて";
 let searchTerm = "";
 let editing = null;
 let selectedFinanceMonth = new Date().toISOString().slice(0,7);
+let scheduleView = "gantt";
+let selectedScheduleDate = new Date().toLocaleDateString("sv-SE");
+let selectedScheduleMonth = selectedScheduleDate.slice(0,7);
+let showAllStaff = false;
 
 function loadDB(){
  try{
@@ -64,7 +68,7 @@ function loadDB(){
  }catch{return JSON.parse(JSON.stringify(initialData))}
 }
 function saveDB(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
-function money(n){return "¥"+Number(n||0).toLocaleString("ja-JP")}
+function money(n){return "¥"+Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2100)}
 function canEdit(){return ["管理者","管理職","事務担当"].includes(currentUser?.role)}
@@ -169,7 +173,7 @@ function render(page){
 function dashboardPage(){
   const active=db.projects.filter(p=>p.status!=="完了").length;
   const total=db.projects.reduce((s,p)=>s+Number(p.amount||0),0);
-  const today=new Date().toISOString().slice(0,10);
+  const today=localToday();
   const todays=db.schedules.filter(s=>s.date===today).length;
   return `<section class="welcome-panel"><div class="eyebrow">BUSINESS MANAGEMENT SYSTEM</div><h1>お疲れさまです、${esc(currentUser.name)} さん</h1><p>${esc(currentUser.role)} ｜ 今日も安全第一でいきましょう。</p></section>
   <div class="section-heading"><h2>会社の状況</h2><span class="sub">登録データに連動</span></div>
@@ -181,6 +185,8 @@ function dashboardPage(){
   </div>
   <div class="section-heading"><h2>メインメニュー</h2><span class="sub">機能を選択</span></div>
   <div class="menu-grid">${menuItems.filter(x=>allowedMenu(x[0])).slice(0,8).map(tileHTML).join("")}</div>
+  <div class="section-heading"><h2>今日のスケジュール</h2><button class="text-btn" data-go="schedule">すべて見る ›</button></div>
+  <div class="dashboard-schedule">${db.schedules.filter(s=>s.date===today).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time)).map(s=>`<div class="dashboard-schedule-row"><strong>${esc(s.time)}〜${esc(s.endTime||"")}</strong><span>${esc(s.title)}：${esc(s.project)}</span><small>${esc(s.person)}</small></div>`).join("")||`<div class="empty-state">今日の予定はありません</div>`}</div>
   <div class="section-heading"><h2>最近の案件</h2><button class="text-btn" data-go="projects">すべて見る ›</button></div>
   <div class="record-list">${db.projects.slice(0,2).map(projectCard).join("")}</div>`;
 }
@@ -193,21 +199,21 @@ function tileHTML(x){return `<button class="menu-tile" data-go="${x[0]}"><span c
 function menuPage(){return `<h1 class="page-title">メニュー</h1><p class="page-subtitle">業務機能を選択してください</p><div class="menu-list">${menuItems.filter(x=>allowedMenu(x[0])).map(x=>`<button class="menu-row" data-go="${x[0]}"><span class="tile-icon">${x[3]}</span><span><strong>${x[1]}</strong><small>${x[2]}</small></span><span class="chevron">›</span></button>`).join("")}</div><div class="section-heading"><h2>アカウント</h2></div><div class="profile-strip"><div class="avatar">${esc(currentUser.name.slice(0,1))}</div><div><strong>${esc(currentUser.name)}</strong><small>${esc(currentUser.role)}</small></div></div><button class="secondary-btn" id="logoutButton" style="width:100%">ログアウト</button>`}
 function projectCard(p){return `<article class="record-card"><div class="record-top"><div><div class="record-title">${esc(p.name)}</div><div class="record-meta">${esc(p.customer)} ・ ${esc(p.date||"日程未定")}<br>${esc(p.person||"担当未設定")} ／ ${esc(p.site||"現場未設定")}</div></div><span class="status ${p.status==="完了"?"done":p.status==="予定"?"wait":""}">${esc(p.status)}</span></div><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button>${canEdit()?`<button class="text-btn" data-edit-project="${p.id}">編集</button>`:""}</div></article>`}
 function projectsPage(){
- const filtered=db.projects.filter(p=>(projectFilter==="すべて"||p.status===projectFilter)&&[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
- return `<h1 class="page-title">案件管理</h1><p class="page-subtitle">案件の登録・進捗・担当者を管理します</p>
+ const stages=[{key:"material",name:"① 材料"},{key:"wip",name:"② 仕掛品"},{key:"goods",name:"③ 商品"}];
+ const active=db.projects.filter(p=>p.workflowStage!=="archived"&&!p.salesProcessed);
+ return `<h1 class="page-title">案件管理</h1><p class="page-subtitle">案件の進捗を左から右へ管理します</p>
  <div class="toolbar"><input class="search-input" id="searchBox" placeholder="案件名・顧客名で検索"><button class="small-primary" id="addProject">＋ 新規</button></div>
- <div class="filter-row">${["すべて","予定","進行中","完了"].map(f=>`<button class="filter-chip ${projectFilter===f?"active":""}" data-filter="${f}">${f}</button>`).join("")}</div>
- <div class="record-list">${filtered.length?filtered.map(projectCard).join(""):`<div class="empty-state">該当する案件がありません</div>`}</div>`;
+ <div class="kanban-board">${stages.map(stage=>{const items=active.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key).filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));return `<section class="kanban-column kanban-${stage.key}"><header><strong>${stage.name}</strong><b>${items.length}</b></header><div class="kanban-cards">${items.length?items.map(p=>`<article class="kanban-card"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")}</small><small>${esc(p.person||"担当未設定")} ・ ${esc(p.date||"日程未定")}</small><div class="kanban-card-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button>${canEdit()?`<button class="text-btn" data-edit-project="${p.id}">編集</button>`:""}${stage.key==="material"?`<button class="text-btn" data-stage-project="${p.id}" data-stage="wip">見積承認 →</button>`:""}${stage.key==="wip"?`<div class="prep-checks"><label><input type="checkbox" data-prep="docs" data-id="${p.id}" ${p.prepDocs?"checked":""}>申請書類</label><label><input type="checkbox" data-prep="date" data-id="${p.id}" ${p.prepDate?"checked":""}>日程調整</label><label><input type="checkbox" data-prep="staff" data-id="${p.id}" ${p.prepStaff?"checked":""}>人員調整</label><button class="text-btn" data-stage-project="${p.id}" data-stage="goods" ${p.prepDocs&&p.prepDate&&p.prepStaff?"":"disabled"}>準備完了 →</button></div>`:""}${stage.key==="goods"?`<button class="text-btn" data-complete-project="${p.id}">作業完了・売上処理</button>`:""}</div></article>`).join(""):`<div class="kanban-empty">案件なし</div>`}</div></section>`}).join("")}</div>`;
 }
-function yenShort(n){return Number(n||0).toLocaleString("ja-JP")}
+function yenShort(n){return Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function stracSvg(pq,vq,mq,f,g){
  // 元図の比率と配置を維持：PQ列／右上VQ／左下MQ／右下FとG。
  const W=760, H=440, top=28, pqW=235, chartX=pqW, chartW=500;
  const innerW=chartW, half=innerW/2, splitX=chartX+half;
- const safePQ=Math.max(0,Number(pq)||0);
- const safeVQ=Math.max(0,Math.min(safePQ,Number(vq)||0));
+ const safePQ=Math.max(0,Math.round(Number(pq)||0));
+ const safeVQ=Math.max(0,Math.min(safePQ,Math.round(Number(vq)||0)));
  const safeMQ=Math.max(0,safePQ-safeVQ);
- const safeF=Math.max(0,Number(f)||0);
+ const safeF=Math.max(0,Math.round(Number(f)||0));
  const safeG=safeMQ-safeF;
  const fmt=yenShort;
  const label=(x,y,t,size=25,weight=500,fill="#17251e")=>`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${size}" font-weight="${weight}" fill="${fill}">${t}</text>`;
@@ -220,7 +226,7 @@ function stracSvg(pq,vq,mq,f,g){
  const negativeH=Math.max(0,-safeG*scale);
  const bottom=baseline+negativeH;
  const viewH=bottom+36;
- const ratioV=safeVQ/safePQ*100, ratioM=safeMQ/safePQ*100;
+ const ratioV=Math.round(safeVQ/safePQ*100), ratioM=Math.round(safeMQ/safePQ*100);
  const parts=[`<svg viewBox="0 0 ${W} ${viewH}" role="img" aria-label="STRAC図 PQ ${fmt(safePQ)} VQ ${fmt(safeVQ)} MQ ${fmt(safeMQ)} F ${fmt(safeF)} G ${fmt(safeG)}" xmlns="http://www.w3.org/2000/svg">`];
  // PQ column
  parts.push(`<rect x="0" y="${top}" width="${pqW}" height="${H}" fill="#b6c9e8" stroke="#858585" stroke-width="4"/>`);
@@ -247,12 +253,12 @@ function stracSvg(pq,vq,mq,f,g){
  if(mH>48) parts.push(label(chartX+half/2,top+vH+mH*.52,`MQ　${fmt(safeMQ)}`,27,500));
  const fMainH=Math.min(fH,mH);
  if(fMainH>50) parts.push(label(splitX+half/2,top+vH+fMainH*.48,`F　${fmt(safeF)}`,27,500));
- if(safeG>0 && safeG*scale>34) parts.push(label(splitX+half/2,baseline-(safeG*scale)/2,`G　${fmt(safeG)}`,24,600));
- if(safeG<0 && negativeH>20) parts.push(label(splitX+half/2,baseline+negativeH/2,`G　${fmt(safeG)}`,24,700,"#8f2525"));
+ if(safeG>0 && safeG*scale>34) parts.push(label(splitX+half/2,baseline-(safeG*scale)/2,`G=${fmt(safeG)}`,24,600));
+ if(safeG<0 && negativeH>20) parts.push(label(splitX+half/2,baseline+negativeH/2,`G=${fmt(safeG)}`,24,700,"#8f2525"));
  // Percent callouts along PQ / right-panel boundary, matching the supplied reference.
  const r=31;
- if(vH>r*2) parts.push(`<circle cx="${chartX}" cy="${top+vH/2}" r="${r}" fill="#f7f7f7" stroke="#858585" stroke-width="3"/>${label(chartX,top+vH/2+1,`${ratioV.toFixed(0)}%`,22)}`);
- if(mH>r*2) parts.push(`<circle cx="${chartX}" cy="${top+vH+mH*.72}" r="${r}" fill="#f7f7f7" stroke="#858585" stroke-width="3"/>${label(chartX,top+vH+mH*.72+1,`${ratioM.toFixed(0)}%`,22)}`);
+ if(vH>r*2) parts.push(`<circle cx="${chartX}" cy="${top+vH/2}" r="${r}" fill="#f7f7f7" stroke="#858585" stroke-width="3"/>${label(chartX,top+vH/2+1,`${ratioV}%`,22)}`);
+ if(mH>r*2) parts.push(`<circle cx="${chartX}" cy="${top+vH+mH*.72}" r="${r}" fill="#f7f7f7" stroke="#858585" stroke-width="3"/>${label(chartX,top+vH+mH*.72+1,`${ratioM}%`,22)}`);
  parts.push('</svg>');
  return parts.join('');
 }
@@ -264,9 +270,9 @@ function analyticsPage(){
  // Sales-processing status is a separate workflow flag and does not hide entered figures.
  const currentMonth=new Date().toISOString().slice(0,7);
  const booked=db.projects.filter(p=>p.salesMonth===month||(!p.salesMonth&&month===currentMonth&&(Number(p.pq||0)!==0||Number(p.vq||0)!==0)));
- const pq=booked.reduce((sum,p)=>sum+Number(p.pq||0),0);
- const vq=booked.reduce((sum,p)=>sum+Number(p.vq||0),0);
- const mq=pq-vq, annualF=getAnnualFixedCost(year), f=annualF/12, g=mq-f;
+ const pq=Math.round(booked.reduce((sum,p)=>sum+Number(p.pq||0),0));
+ const vq=Math.round(booked.reduce((sum,p)=>sum+Number(p.vq||0),0));
+ const mq=Math.round(pq-vq), annualF=getAnnualFixedCost(year), f=Math.round(annualF/12), g=Math.round(mq-f);
  return `<h1 class="page-title">STRAC</h1>
  <div class="strac-toolbar"><input id="financeMonth" type="month" value="${esc(month)}" aria-label="対象月"><span class="strac-count">${booked.length}件</span></div>
  <div class="strac-figure">${stracSvg(pq,vq,mq,f,g)}</div>
@@ -289,11 +295,23 @@ function customersPage(){
  <div class="toolbar"><input class="search-input" id="searchBox" placeholder="会社名・担当者で検索"><button class="small-primary" id="addCustomer">＋ 新規</button></div>
  <div class="record-list">${filtered.length?filtered.map(c=>`<article class="record-card"><div class="record-title">${esc(c.name)}</div><div class="record-meta">${esc(c.person||"担当者未登録")}<br>${esc(c.tel||"電話番号未登録")}<br>${esc(c.address||"住所未登録")}</div><div class="record-actions"><button class="text-btn" data-detail-customer="${c.id}">詳細</button>${canEdit()?`<button class="text-btn" data-edit-customer="${c.id}">編集</button>`:""}</div></article>`).join(""):`<div class="empty-state">顧客情報がありません</div>`}</div>`;
 }
+function localToday(){return new Date().toLocaleDateString("sv-SE")}
+function timeToMinutes(t){if(!t)return 0;const [h,m]=String(t).split(":").map(Number);return h*60+(m||0)}
+function formatWorkTime(t){if(!t)return "";return t}
 function schedulePage(){
- const sorted=[...db.schedules].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
- const groups={};sorted.forEach(s=>(groups[s.date]??=[]).push(s));
- return `<h1 class="page-title">スケジュール</h1><p class="page-subtitle">現場予定・担当者・作業内容を確認します</p><div class="toolbar"><span class="sub" style="flex:1">登録済み ${db.schedules.length} 件</span><button class="small-primary" id="addSchedule">＋ 予定追加</button></div>
- ${Object.keys(groups).length?Object.entries(groups).map(([date,items])=>`<div class="schedule-day">${date.replaceAll("-"," / ")}</div>${items.map(s=>`<article class="schedule-item"><div class="schedule-time">${esc(s.time)}</div><div class="schedule-info"><strong>${esc(s.title)}：${esc(s.project)}</strong><p>${esc(s.site)} ／ ${esc(s.person)}</p><div class="record-actions"><button class="text-btn" data-edit-schedule="${s.id}">編集</button><button class="text-btn danger" data-delete-schedule="${s.id}">削除</button></div></div></article>`).join("")}`).join(""):`<div class="empty-state">予定が登録されていません</div>`}`;
+ const people=[...new Set([currentUser?.name,...db.schedules.map(s=>s.person)].filter(Boolean))];
+ const staff=showAllStaff?people:people.filter(n=>n!=="（内勤）");
+ const dayItems=db.schedules.filter(s=>s.date===selectedScheduleDate).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+ const monthStart=new Date(selectedScheduleMonth+"-01T00:00:00");const first=monthStart.getDay();const days=new Date(monthStart.getFullYear(),monthStart.getMonth()+1,0).getDate();
+ const monthCells=Array.from({length:Math.ceil((first+days)/7)*7},(_,i)=>{const d=i-first+1;return d>0&&d<=days?d:null});
+ const dayEvents=dayItems.length?dayItems.map(s=>`<article class="schedule-item"><div class="schedule-time">${esc(s.time)}〜${esc(s.endTime||"")}</div><div class="schedule-info"><strong>${esc(s.title)}：${esc(s.project)}</strong><p>${esc(s.site)} ／ ${esc(s.person)}</p><div class="record-actions"><button class="text-btn" data-edit-schedule="${s.id}">編集</button><button class="text-btn danger" data-delete-schedule="${s.id}">削除</button></div></div></article>`).join(""):`<div class="empty-state">この日の予定はありません</div>`;
+ const timelineStart=8*60,timelineEnd=30*60,total=timelineEnd-timelineStart;
+ const ticks=[8,10,12,14,16,18,20,22,24,26,28,30];
+ const gantt=`<div class="gantt-wrap"><div class="gantt-inner"><div class="gantt-head"><div class="gantt-name">社員</div><div class="gantt-track">${ticks.map(h=>`<span style="left:${(h*60-timelineStart)/total*100}%">${h}:00</span>`).join("")}</div></div>${staff.map(name=>{const mine=dayItems.filter(s=>s.person===name);const active=(db.staffAvailability||{})[name]??(name===currentUser.name);return `<div class="gantt-row"><div class="gantt-name ${active?"is-working":"is-away"}"><span>${esc(name)}</span><button class="presence-toggle" data-presence="${esc(name)}" title="勤務中／それ以外を切替">${active?"勤務中":"—"}</button></div><div class="gantt-track">${ticks.map(h=>`<i style="left:${(h*60-timelineStart)/total*100}%"></i>`).join("")}${mine.map(s=>{const a=Math.max(timelineStart,timeToMinutes(s.time));let b=timeToMinutes(s.endTime||s.time);if(b<=timeToMinutes(s.time))b+=24*60;const left=Math.max(0,(a-timelineStart)/total*100),width=Math.max(1,Math.min(100-left,(b-a)/total*100));return `<button class="gantt-bar" style="left:${left}%;width:${width}%" data-edit-schedule="${s.id}" title="${esc(s.title)} ${esc(s.time)}-${esc(s.endTime||"")}">${esc(s.title)}</button>`}).join("")}</div></div>`}).join("")}</div></div>`;
+ const calendar=`<div class="month-calendar"><div class="month-heading"><button class="secondary-btn" id="prevMonth">‹</button><strong>${selectedScheduleMonth.replace("-","年 ")}月</strong><button class="secondary-btn" id="nextMonth">›</button></div><div class="month-grid">${["日","月","火","水","木","金","土"].map(x=>`<b>${x}</b>`).join("")}${monthCells.map(d=>{if(!d)return `<span class="month-empty"></span>`;const date=`${selectedScheduleMonth}-${String(d).padStart(2,"0")}`;const count=db.schedules.filter(s=>s.date===date).length;return `<button class="month-day ${date===selectedScheduleDate?"selected":""}" data-pick-date="${date}"><span>${d}</span>${count?`<i>${count}件</i>`:""}</button>`}).join("")}</div></div>`;
+ return `<h1 class="page-title">スケジュール</h1><p class="page-subtitle">社員ごとの予定と空き時間を確認します</p><div class="schedule-toolbar"><div class="view-switch"><button data-sview="day" class="${scheduleView==="day"?"active":""}">1日一覧</button><button data-sview="gantt" class="${scheduleView==="gantt"?"active":""}">タイムライン</button><button data-sview="month" class="${scheduleView==="month"?"active":""}">月間</button></div><button class="small-primary" id="addSchedule">＋ 予定追加</button></div>
+ <div class="schedule-date-control"><button id="prevDay">‹</button><input type="date" id="scheduleDate" value="${selectedScheduleDate}"><button id="nextDay">›</button><label><input type="checkbox" id="showAllStaff" ${showAllStaff?"checked":""}>全社員</label></div>
+ ${scheduleView==="day"?`<div class="schedule-day">${selectedScheduleDate.replaceAll("-"," / ")}</div>${dayEvents}`:scheduleView==="gantt"?`<div class="gantt-legend"><span><i class="legend-working"></i>勤務中</span><span><i class="legend-away"></i>それ以外</span><small>時間軸 08:00〜30:00</small></div>${gantt}`:calendar}`;
 }
 function projectDetailPage(){
  const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
@@ -311,6 +329,18 @@ function bindPageEvents(){
  $("#addProject")?.addEventListener("click",()=>openProjectForm());
  $("#addCustomer")?.addEventListener("click",()=>openCustomerForm());
  $("#addSchedule")?.addEventListener("click",()=>openScheduleForm());
+ $$('[data-sview]').forEach(b=>b.addEventListener('click',()=>{scheduleView=b.dataset.sview;render('schedule')}));
+ $("#scheduleDate")?.addEventListener("change",e=>{selectedScheduleDate=e.target.value;selectedScheduleMonth=selectedScheduleDate.slice(0,7);render("schedule")});
+ $("#prevDay")?.addEventListener("click",()=>{const d=new Date(selectedScheduleDate+"T12:00:00");d.setDate(d.getDate()-1);selectedScheduleDate=d.toLocaleDateString("sv-SE");selectedScheduleMonth=selectedScheduleDate.slice(0,7);render("schedule")});
+ $("#nextDay")?.addEventListener("click",()=>{const d=new Date(selectedScheduleDate+"T12:00:00");d.setDate(d.getDate()+1);selectedScheduleDate=d.toLocaleDateString("sv-SE");selectedScheduleMonth=selectedScheduleDate.slice(0,7);render("schedule")});
+ $("#showAllStaff")?.addEventListener("change",e=>{showAllStaff=e.target.checked;render("schedule")});
+ $("#prevMonth")?.addEventListener("click",()=>{const d=new Date(selectedScheduleMonth+"-01T12:00:00");d.setMonth(d.getMonth()-1);selectedScheduleMonth=d.toLocaleDateString("sv-SE").slice(0,7);render("schedule")});
+ $("#nextMonth")?.addEventListener("click",()=>{const d=new Date(selectedScheduleMonth+"-01T12:00:00");d.setMonth(d.getMonth()+1);selectedScheduleMonth=d.toLocaleDateString("sv-SE").slice(0,7);render("schedule")});
+ $$('[data-pick-date]').forEach(b=>b.addEventListener('click',()=>{selectedScheduleDate=b.dataset.pickDate;scheduleView='day';render('schedule')}));
+ $$('[data-presence]').forEach(b=>b.addEventListener('click',()=>{db.staffAvailability=db.staffAvailability||{};const n=b.dataset.presence;db.staffAvailability[n]=db.staffAvailability[n]===false?true:false;saveDB();render('schedule')}));
+ $$('[data-stage-project]').forEach(b=>b.addEventListener('click',()=>moveProjectStage(Number(b.dataset.stageProject),b.dataset.stage)));
+ $$('[data-prep]').forEach(b=>b.addEventListener('change',()=>{const p=db.projects.find(x=>x.id===Number(b.dataset.id));if(!p)return;p[{docs:'prepDocs',date:'prepDate',staff:'prepStaff'}[b.dataset.prep]]=b.checked;saveDB();render('projects')}));
+ $$('[data-complete-project]').forEach(b=>b.addEventListener('click',()=>{const p=db.projects.find(x=>x.id===Number(b.dataset.completeProject));if(!p)return;if(!confirm('作業完了・売上処理済みにして案件ボードから除外しますか？'))return;p.workCompleted=true;p.salesProcessed=true;p.workflowStage='archived';saveDB();render('projects');toast('売上処理済みとして保存しました')}));
  $("#financeMonth")?.addEventListener("change",e=>{selectedFinanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("analytics")});
  $("#settingsYear")?.addEventListener("change",e=>{const y=String(e.target.value||new Date().getFullYear()).slice(0,4);selectedFinanceMonth=`${y}-01`;render("settings")});
  $("#saveAnnualFixedCost")?.addEventListener("click",()=>{const value=Number($("#annualFixedCostInput").value||0);if(value<0||!Number.isFinite(value)){toast("年間固定費を正しく入力してください");return}const year=selectedFinanceMonth.slice(0,4);db.annualFixedCostByYear=db.annualFixedCostByYear||{};db.annualFixedCostByYear[year]=value;saveDB();toast(`${year}年の年間固定費を保存しました`);render("settings")});
@@ -326,6 +356,7 @@ function bindPageEvents(){
  $("#deleteCurrentProject")?.addEventListener("click",()=>deleteProject(Number(window.selectedId)));
  $("#editCurrentCustomer")?.addEventListener("click",()=>openCustomerForm(Number(window.selectedId)));
 }
+function moveProjectStage(id,stage){const p=db.projects.find(x=>x.id===id);if(!p)return;if(stage==='goods'&&!(p.prepDocs&&p.prepDate&&p.prepStaff)){toast('申請書類・日程・人員の準備をすべて完了してください');return}p.workflowStage=stage;if(stage==='wip')p.estimateApproved=true;saveDB();render('projects');toast('案件を移動しました')}
 function openDialog(title,fields,record,onSave){
  editing={record,onSave};$("#dialogTitle").textContent=title;$("#dialogFields").innerHTML=fields.map(f=>fieldHTML(f,record?.[f.key])).join("");$("#formDialog").showModal();
 }
@@ -348,7 +379,7 @@ function openProjectForm(id){
   {key:"vq",label:"VQ（案件原価）",type:"number",default:0},
   {key:"salesProcessed",label:"売上処理",type:"select",options:["未処理","処理済"],default:"未処理"},
   {key:"notes",label:"備考",type:"textarea"}
- ],p?{...p,salesProcessed:p.salesProcessed?"処理済":"未処理"}:null,data=>{const item={...data,id:p?.id||Date.now(),amount:Number(data.amount||0),pq:Number(data.pq||0),vq:Number(data.vq||0),salesMonth:data.salesMonth||p?.salesMonth||p?.date?.slice(0,7)||new Date().toISOString().slice(0,7),salesProcessed:data.salesProcessed==="処理済"};if(p)db.projects=db.projects.map(x=>x.id===p.id?item:x);else db.projects.unshift(item);saveDB();$("#formDialog").close();toast(p?"案件を更新しました":"案件を登録しました");render(p&&currentPage==="projectDetail"?"projectDetail":"projects")});
+ ],p?{...p,salesProcessed:p.salesProcessed?"処理済":"未処理"}:null,data=>{const item={...data,...(p?{workflowStage:p.workflowStage||"material",prepDocs:!!p.prepDocs,prepDate:!!p.prepDate,prepStaff:!!p.prepStaff,workCompleted:!!p.workCompleted}: {workflowStage:"material",prepDocs:false,prepDate:false,prepStaff:false}),id:p?.id||Date.now(),amount:Number(data.amount||0),pq:Number(data.pq||0),vq:Number(data.vq||0),salesMonth:data.salesMonth||p?.salesMonth||p?.date?.slice(0,7)||new Date().toISOString().slice(0,7),salesProcessed:data.salesProcessed==="処理済"};if(p)db.projects=db.projects.map(x=>x.id===p.id?item:x);else db.projects.unshift(item);saveDB();$("#formDialog").close();toast(p?"案件を更新しました":"案件を登録しました");render(p&&currentPage==="projectDetail"?"projectDetail":"projects")});
 }
 function openCustomerForm(id){
  if(!canEdit()){toast("編集権限がありません");return}
@@ -363,10 +394,10 @@ function openCustomerForm(id){
 function openScheduleForm(id){
  const s=id?db.schedules.find(x=>x.id===id):null;
  openDialog(s?"予定を編集":"予定を追加",[
-  {key:"date",label:"日付",type:"date",required:true,default:new Date().toISOString().slice(0,10)},
-  {key:"time",label:"開始時刻",type:"time",default:"09:00"},{key:"title",label:"予定内容",required:true},
-  {key:"project",label:"関連案件"},{key:"site",label:"場所"},{key:"person",label:"担当者",default:currentUser.name}
- ],s,data=>{const item={...data,id:s?.id||Date.now()};if(s)db.schedules=db.schedules.map(x=>x.id===s.id?item:x);else db.schedules.push(item);saveDB();$("#formDialog").close();toast(s?"予定を更新しました":"予定を追加しました");render("schedule")});
+  {key:"date",label:"作業日",type:"date",required:true,default:selectedScheduleDate||new Date().toLocaleDateString("sv-SE")},
+  {key:"time",label:"開始時刻（26:00なども可）",default:"09:00"},{key:"endTime",label:"終了時刻（26:00なども可）",default:"10:00"},{key:"title",label:"作業内容",required:true},
+  {key:"project",label:"関連案件"},{key:"site",label:"場所"},{key:"person",label:"担当社員",default:currentUser.name}
+ ],s,data=>{const item={...data,id:s?.id||Date.now()};if(s)db.schedules=db.schedules.map(x=>x.id===s.id?item:x);else db.schedules.push(item);saveDB();selectedScheduleDate=item.date;selectedScheduleMonth=item.date.slice(0,7);$("#formDialog").close();toast(s?"予定を更新しました":"予定を追加しました");render("schedule")});
 }
 function deleteProject(id){if(!confirm("この案件を削除しますか？"))return;db.projects=db.projects.filter(x=>x.id!==id);saveDB();toast("案件を削除しました");render("projects")}
 function deleteSchedule(id){if(!confirm("この予定を削除しますか？"))return;db.schedules=db.schedules.filter(x=>x.id!==id);saveDB();toast("予定を削除しました");render("schedule")}
