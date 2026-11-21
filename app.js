@@ -1,3 +1,24 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBx84q5_wWuZWYvaWVCCzycOc1562sczeY",
+  authDomain: "cannabis-ea8f2.firebaseapp.com",
+  projectId: "cannabis-ea8f2",
+  storageBucket: "cannabis-ea8f2.firebasestorage.app",
+  messagingSenderId: "394976170327",
+  appId: "1:394976170327:web:bf4fca3c4dad70f866ee12"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const firestore = getFirestore(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
@@ -22,30 +43,98 @@ const initialData = {
     {id:1,date:"2026-11-20",time:"09:00",title:"現場調査",site:"大阪市此花区",person:"鈴木 一郎",project:"大阪市 冷凍庫更新工事"},
     {id:2,date:"2026-11-20",time:"13:00",title:"打ち合わせ",site:"本社",person:"山田 太郎",project:"社内打ち合わせ"},
     {id:3,date:"2026-11-21",time:"10:00",title:"定期点検",site:"神戸市東灘区",person:"山田 太郎",project:"神戸市 冷凍機定期点検"}
-  ]
+  ],
+  financeByMonth:{}
 };
 let db = loadDB();
 let currentUser = null;
+let loginNotice = "";
 let currentPage = "dashboard";
 let projectFilter = "すべて";
 let searchTerm = "";
 let editing = null;
+let selectedFinanceMonth = new Date().toISOString().slice(0,7);
 
-function loadDB(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||structuredClone(initialData)}catch{return JSON.parse(JSON.stringify(initialData))}}
+function loadDB(){
+ try{
+  const stored=JSON.parse(localStorage.getItem(STORAGE_KEY));
+  if(!stored)return structuredClone(initialData);
+  return {...structuredClone(initialData),...stored,financeByMonth:stored.financeByMonth||{}};
+ }catch{return JSON.parse(JSON.stringify(initialData))}
+}
 function saveDB(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
 function money(n){return "¥"+Number(n||0).toLocaleString("ja-JP")}
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2100)}
 function canEdit(){return ["管理者","管理職","事務担当"].includes(currentUser?.role)}
 function canSeeFinance(){return ["管理者","管理職","事務担当"].includes(currentUser?.role)}
-function showLogin(){$("#loginView").classList.remove("hidden");$("#mainView").classList.add("hidden")}
-function login(){
-  const key=$("#employeeSelect").value, pin=$("#pinInput").value, emp=employees[key];
-  if(pin!==emp.pin){toast("PINコードが違います");return}
-  currentUser={...emp,key};$("#loginView").classList.add("hidden");$("#mainView").classList.remove("hidden");render("dashboard");
+function showLogin(message=null){
+  if(message!==null) loginNotice=message;
+  $("#loginView").classList.remove("hidden");
+  $("#mainView").classList.add("hidden");
+  const messageEl=$("#authMessage");
+  if(messageEl) messageEl.textContent=loginNotice||"登録済みのGoogleアカウントでログインしてください。";
 }
-$("#loginButton").addEventListener("click",login);
-$("#pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
+function showMain(){
+  $("#loginView").classList.add("hidden");
+  $("#mainView").classList.remove("hidden");
+  render("dashboard");
+}
+async function verifyEmployee(user){
+  const employeeRef=doc(firestore,"employees",user.uid);
+  const employeeSnap=await getDoc(employeeRef);
+  if(!employeeSnap.exists()){
+    const message=`社員登録がありません。管理者に次の情報を伝えてください。\\nメール：${user.email||"不明"}\\nUID：${user.uid}`;
+    await signOut(auth);
+    showLogin(message);
+    return;
+  }
+  const employee=employeeSnap.data();
+  if(employee.active!==true || employee.email!==user.email){
+    await signOut(auth);
+    showLogin("このアカウントは利用できません。管理者に確認してください。");
+    return;
+  }
+  loginNotice="";
+  currentUser={
+    uid:user.uid,
+    email:user.email,
+    name:employee.name||user.displayName||"社員",
+    role:employee.role||"現場担当"
+  };
+  showMain();
+}
+async function loginWithGoogle(){
+  const button=$("#googleLoginButton");
+  button.disabled=true;
+  button.textContent="ログイン中…";
+  try{
+    await signInWithPopup(auth,googleProvider);
+  }catch(error){
+    console.error(error);
+    showLogin(error.code==="auth/unauthorized-domain"
+      ?"このURLはFirebaseに未登録です。管理者設定で h-kitade38.github.io を追加してください。"
+      :"Googleログインに失敗しました。通信環境とアカウントを確認してください。");
+  }finally{
+    button.disabled=false;
+    button.textContent="Googleアカウントでログイン";
+  }
+}
+$("#googleLoginButton").addEventListener("click",loginWithGoogle);
+onAuthStateChanged(auth,async user=>{
+  if(!user){
+    currentUser=null;
+    showLogin();
+    return;
+  }
+  try{
+    await verifyEmployee(user);
+  }catch(error){
+    console.error(error);
+    await signOut(auth);
+    showLogin("社員情報を確認できませんでした。Firestore設定を確認してください。");
+  }
+});
 $("#homeButton").addEventListener("click",()=>render("dashboard"));
 $("#backButton").addEventListener("click",()=>render("projects"));
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>render(b.dataset.nav)));
@@ -61,7 +150,7 @@ const menuItems=[
   ["customers","顧客マスター","顧客情報・現場情報","♙"],
   ["partners","取引先マスター","仕入先・協力会社","♧"],
   ["attendance","勤怠管理","出退勤・勤務状況","◷"],
-  ["analytics","経営分析","売上・粗利・案件状況","⌁"],
+  ["analytics","STRAC","PQ・VQ・MQ・F・G","⌁"],
   ["equipment","設備台帳","冷凍機・空調機・修理履歴","⚙"],
   ["inventory","在庫・部品管理","部品・冷媒・消耗品","▦"],
   ["settings","設定","社員・権限・基本情報","⚙"]
@@ -70,7 +159,7 @@ function navActive(page){$$(".nav-item").forEach(b=>b.classList.toggle("active",
 function render(page){
   currentPage=page;searchTerm="";navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail"].includes(page));
   const content=$("#content");
-  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,customers:customersPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
+  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,customers:customersPage,analytics:analyticsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
   if(pages[page])content.innerHTML=pages[page]();
   else content.innerHTML=comingSoonPage(page);
   bindPageEvents();
@@ -88,18 +177,6 @@ function dashboardPage(){
     <div class="metric-card"><div class="metric-label">案件登録金額</div><div class="metric-value">${money(total)}</div><div class="metric-foot">全案件の合計</div></div>
     <div class="metric-card"><div class="metric-label">顧客登録数</div><div class="metric-value">${db.customers.length}<small> 社</small></div><div class="metric-foot">顧客マスター</div></div>
     <div class="metric-card"><div class="metric-label">本日の予定</div><div class="metric-value">${todays}<small> 件</small></div><div class="metric-foot">スケジュール登録分</div></div>
-  </div>
-  <div class="section-heading"><h2>MQ会計（STRAC図）</h2><span class="sub">デモ数値</span></div>
-  <div class="strac-card">
-    <div class="strac-row"><span class="strac-label">PQ 売上高</span><strong>100万円</strong></div>
-    <div class="strac-bar pq"><span style="width:100%"></span></div>
-    <div class="strac-split-labels"><span>VQ 変動費 <b>40万円</b></span><span>MQ 限界利益 <b>60万円</b></span></div>
-    <div class="strac-bar split"><span class="vq" style="width:40%"></span><span class="mq" style="width:60%"></span></div>
-    <div class="strac-mq-label">MQ 60万円 の内訳</div>
-    <div class="strac-split-labels"><span>F 固定費 <b>50万円</b></span><span>G 利益 <b>10万円</b></span></div>
-    <div class="strac-bar split"><span class="fixed" style="width:83.333%"></span><span class="profit" style="width:16.667%"></span></div>
-    <div class="strac-equation">PQ − VQ ＝ MQ　／　MQ − F ＝ G</div>
-    <p class="strac-note">※表示は構成確認用のサンプルです。実績値とは連動していません。</p>
   </div>
   <div class="section-heading"><h2>メインメニュー</h2><span class="sub">機能を選択</span></div>
   <div class="menu-grid">${menuItems.filter(x=>allowedMenu(x[0])).slice(0,8).map(tileHTML).join("")}</div>
@@ -121,6 +198,66 @@ function projectsPage(){
  <div class="filter-row">${["すべて","予定","進行中","完了"].map(f=>`<button class="filter-chip ${projectFilter===f?"active":""}" data-filter="${f}">${f}</button>`).join("")}</div>
  <div class="record-list">${filtered.length?filtered.map(projectCard).join(""):`<div class="empty-state">該当する案件がありません</div>`}</div>`;
 }
+function yenShort(n){return Number(n||0).toLocaleString("ja-JP")}
+function stracSvg(pq,vq,mq,f,g){
+ const W=700,H=500,left=220,rightW=W-left,top=24,bottom=top+H;
+ const safePQ=Math.max(0,Number(pq)||0), safeVQ=Math.max(0,Number(vq)||0), safeMQ=safePQ-safeVQ;
+ if(safePQ<=0){return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="STRAC図"><text x="350" y="245" text-anchor="middle" fill="#77847b" font-size="22">PQ=0</text></svg>`}
+ const scale=H/safePQ, vH=Math.max(0,Math.min(H,safeVQ*scale)), mH=Math.max(0,H-vH), base=top+vH+mH;
+ const x0=left, mid=x0+rightW*.50, x1=W;
+ const fH=Math.max(0,Number(f)||0)*scale;
+ const fBottom=top+vH+fH;
+ const fmt=n=>yenShort(n);
+ const ratioV=safeVQ/safePQ*100, ratioM=safeMQ/safePQ*100;
+ const label=(x,y,t,size=24,weight=500)=>`<text x="${x}" y="${y}" text-anchor="middle" font-size="${size}" font-weight="${weight}" fill="#17251e">${t}</text>`;
+ let parts=[];
+ parts.push(`<svg viewBox="0 0 ${W} ${top+H+Math.max(44,(fBottom-bottom)) + 20}" role="img" aria-label="STRAC図 PQ ${fmt(pq)} VQ ${fmt(vq)} MQ ${fmt(mq)} F ${fmt(f)} G ${fmt(g)}" xmlns="http://www.w3.org/2000/svg">`);
+ parts.push(`<rect x="${left}" y="${top}" width="${rightW}" height="${vH}" fill="#d8d8d8" stroke="#858585" stroke-width="4"/>`);
+ parts.push(`<rect x="${left}" y="${top+vH}" width="${rightW*.5}" height="${mH}" fill="#c4dfb5" stroke="#858585" stroke-width="4"/>`);
+ // Fixed-cost block is aligned to the contribution-margin top. Its lower edge defines the G baseline.
+ const fY=top+vH;
+ const fRectH=fH;
+ parts.push(`<rect x="${mid}" y="${fY}" width="${rightW*.5}" height="${fRectH}" fill="#f9e2d2" stroke="#858585" stroke-width="4"/>`);
+ // PQ vertical column
+ parts.push(`<rect x="0" y="${top}" width="${left}" height="${H}" fill="#b6c9e8" stroke="#858585" stroke-width="4"/>`);
+ // G area: positive is below F and within MQ; negative protrudes below the MQ baseline.
+ if(g>=0){
+   const gh=Math.max(0,g*scale);
+   parts.push(`<rect x="${mid}" y="${fBottom}" width="${rightW*.5}" height="${gh}" fill="#ffe18c" stroke="#858585" stroke-width="4"/>`);
+ }else{
+   // The F block itself protrudes below the contribution-margin baseline; G is labeled in that protrusion.
+ }
+ // Baseline at the end of the contribution-margin area.
+ parts.push(`<line x1="${left}" y1="${bottom}" x2="${W}" y2="${bottom}" stroke="#454545" stroke-width="3" stroke-dasharray="7 5"/>`);
+ parts.push(label(left/2,top+H*.22,"PQ",31,600));
+ parts.push(label(left/2,top+H*.22+42,fmt(pq),27,500));
+ parts.push(label(left+rightW/2,top+vH*.52,"VQ  "+fmt(vq),29,500));
+ parts.push(label(left+rightW*.25,top+vH+mH*.53,"MQ  "+fmt(mq),29,500));
+ const fLabelY=Math.min(fBottom-18, fY+Math.max(42,fRectH*.52));
+ parts.push(label(mid+rightW*.25,fLabelY,"F  "+fmt(f),27,500));
+ if(g>=0){parts.push(label(mid+rightW*.25,Math.min(bottom-8,fBottom+Math.max(26,(g*scale)*.58)),"G  "+fmt(g),24,600));}
+ else {parts.push(label(mid+rightW*.25,bottom+Math.max(25,Math.abs(g)*scale*.55),"G  "+fmt(g),24,700));}
+ // Ratio callouts along the PQ / VQ-MQ boundary.
+ const circleY1=top+vH*.55, circleY2=top+vH+mH*.72;
+ parts.push(`<circle cx="${left}" cy="${circleY1}" r="43" fill="#f7f7f7" stroke="#858585" stroke-width="4"/>${label(left,circleY1+9,ratioV.toFixed(1).replace(/\\.0$/,'')+"%",25)}`);
+ parts.push(`<circle cx="${left}" cy="${circleY2}" r="43" fill="#f7f7f7" stroke="#858585" stroke-width="4"/>${label(left,circleY2+9,ratioM.toFixed(1).replace(/\\.0$/,'')+"%",25)}`);
+ parts.push('</svg>');
+ return parts.join('');
+}
+function analyticsPage(){
+ const month=selectedFinanceMonth;
+ const monthly=db.financeByMonth[month]||{fixedCost:0};
+ const booked=db.projects.filter(p=>p.salesProcessed===true && (p.salesMonth||'')===month);
+ const pq=booked.reduce((sum,p)=>sum+Number(p.pq||0),0);
+ const vq=booked.reduce((sum,p)=>sum+Number(p.vq||0),0);
+ const mq=pq-vq, f=Number(monthly.fixedCost||0), g=mq-f;
+ return `<h1 class="page-title">STRAC</h1>
+ <div class="strac-toolbar"><input id="financeMonth" type="month" value="${esc(month)}" aria-label="対象月"><span class="strac-count">${booked.length}件</span></div>
+ <div class="strac-figure">${stracSvg(pq,vq,mq,f,g)}</div>
+ <div class="strac-values"><div><span>PQ</span><strong>${money(pq)}</strong></div><div><span>VQ</span><strong>${money(vq)}</strong></div><div><span>MQ</span><strong>${money(mq)}</strong></div><div><span>F</span><strong>${money(f)}</strong></div><div><span>G</span><strong class="${g<0?'negative':''}">${money(g)}</strong></div></div>
+ <div class="strac-fixed"><label for="fixedCostInput">F</label><input id="fixedCostInput" type="number" min="0" step="1" inputmode="numeric" value="${esc(f)}"><button class="small-primary" id="saveFixedCost">保存</button></div>
+ <p class="strac-foot">${booked.length}件</p>`;
+}
 function customersPage(){
  const filtered=db.customers.filter(c=>[c.name,c.person,c.address,c.tel].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
  return `<h1 class="page-title">顧客マスター</h1><p class="page-subtitle">顧客情報・連絡先を一元管理します</p>
@@ -131,11 +268,11 @@ function schedulePage(){
  const sorted=[...db.schedules].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
  const groups={};sorted.forEach(s=>(groups[s.date]??=[]).push(s));
  return `<h1 class="page-title">スケジュール</h1><p class="page-subtitle">現場予定・担当者・作業内容を確認します</p><div class="toolbar"><span class="sub" style="flex:1">登録済み ${db.schedules.length} 件</span><button class="small-primary" id="addSchedule">＋ 予定追加</button></div>
- ${Object.keys(groups).length?Object.entries(groups).map(([date,items])=>`<div class="schedule-day">${date.replaceAll("-"," / ")}</div>${items.map(s=>`<article class="schedule-item"><div class="schedule-time">${esc(s.time)}${s.endTime?`〜${esc(s.endTime)}`:""}</div><div class="schedule-info"><strong>${esc(s.title)}：${esc(s.project)}</strong><p>${esc(s.site)} ／ ${esc(s.person)}${s.workType?` ／ ${esc(s.workType)}`:""}</p><div class="record-actions"><button class="text-btn" data-edit-schedule="${s.id}">編集</button><button class="text-btn danger" data-delete-schedule="${s.id}">削除</button></div></div></article>`).join("")}`).join(""):`<div class="empty-state">予定が登録されていません</div>`}`;
+ ${Object.keys(groups).length?Object.entries(groups).map(([date,items])=>`<div class="schedule-day">${date.replaceAll("-"," / ")}</div>${items.map(s=>`<article class="schedule-item"><div class="schedule-time">${esc(s.time)}</div><div class="schedule-info"><strong>${esc(s.title)}：${esc(s.project)}</strong><p>${esc(s.site)} ／ ${esc(s.person)}</p><div class="record-actions"><button class="text-btn" data-edit-schedule="${s.id}">編集</button><button class="text-btn danger" data-delete-schedule="${s.id}">削除</button></div></div></article>`).join("")}`).join(""):`<div class="empty-state">予定が登録されていません</div>`}`;
 }
 function projectDetailPage(){
  const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
- return `<h1 class="page-title">案件詳細</h1><p class="page-subtitle">案件情報を確認します</p><div class="detail-card"><div class="record-top"><strong>${esc(p.name)}</strong><span class="status">${esc(p.status)}</span></div>${detailRow("顧客",p.customer)}${detailRow("現場",p.site)}${detailRow("案件種別",p.type)}${detailRow("作業予定日",p.date)}${detailRow("担当者",p.person)}${detailRow("見積・受注金額",money(p.amount))}${detailRow("備考",p.notes)}</div><div class="toolbar"><button class="secondary-btn" data-go="projects" style="flex:1">一覧へ戻る</button>${canEdit()?`<button class="primary-btn" id="editCurrentProject" style="flex:1">編集する</button><button class="secondary-btn" id="deleteCurrentProject">削除</button>`:""}</div>`;
+ return `<h1 class="page-title">案件詳細</h1><p class="page-subtitle">案件情報を確認します</p><div class="detail-card"><div class="record-top"><strong>${esc(p.name)}</strong><span class="status">${esc(p.status)}</span></div>${detailRow("顧客",p.customer)}${detailRow("現場",p.site)}${detailRow("案件種別",p.type)}${detailRow("作業予定日",p.date)}${detailRow("担当者",p.person)}${detailRow("見積・受注金額",money(p.amount))}${detailRow("売上計上月",p.salesMonth||"")}${detailRow("PQ",money(p.pq||0))}${detailRow("VQ",money(p.vq||0))}${detailRow("売上処理",p.salesProcessed?"処理済":"未処理")}${detailRow("備考",p.notes)}</div><div class="toolbar"><button class="secondary-btn" data-go="projects" style="flex:1">一覧へ戻る</button>${canEdit()?`<button class="primary-btn" id="editCurrentProject" style="flex:1">編集する</button><button class="secondary-btn" id="deleteCurrentProject">削除</button>`:""}</div>`;
 }
 function customerDetailPage(){
  const c=db.customers.find(x=>x.id===Number(window.selectedId));if(!c)return customersPage();
@@ -145,10 +282,12 @@ function detailRow(k,v){return `<div class="detail-row"><span>${k}</span><strong
 function comingSoonPage(key){const item=menuItems.find(x=>x[0]===key);return `<h1 class="page-title">${item?.[1]||"機能"}</h1><p class="page-subtitle">${item?.[2]||""}</p><div class="empty-state"><div style="font-size:28px;margin-bottom:8px;color:var(--green)">✧</div>この機能は次の開発段階で実装します。<br>メニュー構成と画面デザインは準備済みです。<br><button class="secondary-btn" data-go="menu" style="margin-top:16px">メニューに戻る</button></div>`}
 function bindPageEvents(){
  $$("[data-go]").forEach(b=>b.addEventListener("click",()=>render(b.dataset.go)));
- $("#logoutButton")?.addEventListener("click",()=>{currentUser=null;showLogin()});
+ $("#logoutButton")?.addEventListener("click",async()=>{await signOut(auth);currentUser=null;showLogin()});
  $("#addProject")?.addEventListener("click",()=>openProjectForm());
  $("#addCustomer")?.addEventListener("click",()=>openCustomerForm());
  $("#addSchedule")?.addEventListener("click",()=>openScheduleForm());
+ $("#financeMonth")?.addEventListener("change",e=>{selectedFinanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("analytics")});
+ $("#saveFixedCost")?.addEventListener("click",()=>{const value=Number($("#fixedCostInput").value||0);if(value<0){toast("Fは0以上で入力してください");return}db.financeByMonth[selectedFinanceMonth]={...(db.financeByMonth[selectedFinanceMonth]||{}),fixedCost:value};saveDB();toast("Fを保存しました");render("analytics")});
  $("#searchBox")?.addEventListener("input",e=>{searchTerm=e.target.value;const y=window.scrollY;render(currentPage);const input=$("#searchBox");input.focus();input.setSelectionRange(input.value.length,input.value.length);window.scrollTo(0,y)});
  $$("[data-filter]").forEach(b=>b.addEventListener("click",()=>{projectFilter=b.dataset.filter;render("projects")}));
  $$("[data-detail-project]").forEach(b=>b.addEventListener("click",()=>{window.selectedId=b.dataset.detailProject;render("projectDetail")}));
@@ -177,8 +316,13 @@ function openProjectForm(id){
   {key:"site",label:"現場住所・場所"},{key:"type",label:"案件種別",type:"select",options:["修理","定期点検","更新工事","新設工事","その他"],default:"修理"},
   {key:"status",label:"進捗状況",type:"select",options:["予定","進行中","完了"],default:"予定"},
   {key:"date",label:"作業予定日",type:"date"},{key:"person",label:"担当者",default:currentUser.name},
-  {key:"amount",label:"見積・受注金額",type:"number",default:0},{key:"notes",label:"備考",type:"textarea"}
- ],p,data=>{const item={...data,id:p?.id||Date.now(),amount:Number(data.amount||0)};if(p)db.projects=db.projects.map(x=>x.id===p.id?item:x);else db.projects.unshift(item);saveDB();$("#formDialog").close();toast(p?"案件を更新しました":"案件を登録しました");render(p&&currentPage==="projectDetail"?"projectDetail":"projects")});
+  {key:"amount",label:"見積・受注金額",type:"number",default:0},
+  {key:"salesMonth",label:"売上計上月",type:"month"},
+  {key:"pq",label:"PQ（売上金額）",type:"number",default:0},
+  {key:"vq",label:"VQ（案件原価）",type:"number",default:0},
+  {key:"salesProcessed",label:"売上処理",type:"select",options:["未処理","処理済"],default:"未処理"},
+  {key:"notes",label:"備考",type:"textarea"}
+ ],p?{...p,salesProcessed:p.salesProcessed?"処理済":"未処理"}:null,data=>{const item={...data,id:p?.id||Date.now(),amount:Number(data.amount||0),pq:Number(data.pq||0),vq:Number(data.vq||0),salesProcessed:data.salesProcessed==="処理済"};if(p)db.projects=db.projects.map(x=>x.id===p.id?item:x);else db.projects.unshift(item);saveDB();$("#formDialog").close();toast(p?"案件を更新しました":"案件を登録しました");render(p&&currentPage==="projectDetail"?"projectDetail":"projects")});
 }
 function openCustomerForm(id){
  if(!canEdit()){toast("編集権限がありません");return}
@@ -193,15 +337,13 @@ function openCustomerForm(id){
 function openScheduleForm(id){
  const s=id?db.schedules.find(x=>x.id===id):null;
  openDialog(s?"予定を編集":"予定を追加",[
-  {key:"date",label:"作業日（開始日基準）",type:"date",required:true,default:new Date().toISOString().slice(0,10)},
-  {key:"time",label:"開始時刻（例 20:00）",default:"09:00",required:true},{key:"endTime",label:"終了時刻（例 26:00）",default:"18:00",required:true},
-  {key:"workType",label:"勤務区分",type:"select",options:["日中作業","閉店後作業","休日出勤"],default:"日中作業"},
-  {key:"title",label:"予定内容",required:true},{key:"project",label:"関連案件"},{key:"site",label:"場所"},{key:"person",label:"担当者",default:currentUser.name}
- ],s,data=>{const valid=t=>/^(?:[0-9]|[1-3][0-9]|4[0-7]):[0-5][0-9]$/.test(t);if(!valid(data.time)||!valid(data.endTime)){toast("時刻は00:00〜47:59で入力してください");return}const toMin=t=>{const [h,m]=t.split(":").map(Number);return h*60+m};if(toMin(data.endTime)<=toMin(data.time)){toast("終了時刻は開始時刻より後にしてください");return}const item={...data,id:s?.id||Date.now()};if(s)db.schedules=db.schedules.map(x=>x.id===s.id?item:x);else db.schedules.push(item);saveDB();$("#formDialog").close();toast(s?"予定を更新しました":"予定を追加しました");render("schedule")});
+  {key:"date",label:"日付",type:"date",required:true,default:new Date().toISOString().slice(0,10)},
+  {key:"time",label:"開始時刻",type:"time",default:"09:00"},{key:"title",label:"予定内容",required:true},
+  {key:"project",label:"関連案件"},{key:"site",label:"場所"},{key:"person",label:"担当者",default:currentUser.name}
+ ],s,data=>{const item={...data,id:s?.id||Date.now()};if(s)db.schedules=db.schedules.map(x=>x.id===s.id?item:x);else db.schedules.push(item);saveDB();$("#formDialog").close();toast(s?"予定を更新しました":"予定を追加しました");render("schedule")});
 }
 function deleteProject(id){if(!confirm("この案件を削除しますか？"))return;db.projects=db.projects.filter(x=>x.id!==id);saveDB();toast("案件を削除しました");render("projects")}
 function deleteSchedule(id){if(!confirm("この予定を削除しますか？"))return;db.schedules=db.schedules.filter(x=>x.id!==id);saveDB();toast("予定を削除しました");render("schedule")}
 $("#entityForm").addEventListener("submit",e=>{e.preventDefault();if(!editing)return;const data=Object.fromEntries(new FormData(e.currentTarget).entries());editing.onSave(data)});
 function closeDialog(){$("#formDialog").close();editing=null}
 $("#closeDialog").addEventListener("click",closeDialog);$("#cancelDialog").addEventListener("click",closeDialog);
-render("dashboard");
