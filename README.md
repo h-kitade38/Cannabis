@@ -119,3 +119,11 @@ Firebase Web設定のapiKey等はWebアプリで公開される前提の設定�
 - Presence highlight is manually toggled for prototype testing; it is not actual attendance integration.
 - Role and page-level permission management remains deferred as requested.
 - No production readiness claim: test with sample data before using for real operations.
+
+## v0.5 スケジュール・ホーム画面改訂
+
+- 予定の開始・終了時刻は4桁入力（例：0700、1900、2600）。保存時は従来互換の `HH:MM` 形式で保持。
+- ガントチャートは通常08:00〜18:00。対象日の予定に08:00より前、または18:00より後があれば表示範囲を自動拡張。
+- ホーム画面の順序を「今日の予定 → 案件の流れ（材料・仕掛品・商品）→ 会社の数字（STRAC）」に変更。
+- 下部ナビゲーションを「ホーム・案件・予定・勤怠・メニュー」に変更。
+- 勤怠ページ自体は現段階では次段階の実装対象。
