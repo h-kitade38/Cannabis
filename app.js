@@ -140,7 +140,7 @@ onAuthStateChanged(auth,async user=>{
     showLogin("社員情報を確認できませんでした。Firestore設定を確認してください。");
   }
 });
-$("#homeButton").addEventListener("click",()=>render("dashboard"));
+
 $("#backButton").addEventListener("click",()=>render("projects"));
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>render(b.dataset.nav)));
 
@@ -183,8 +183,8 @@ function dashboardPage(){
   return `<section class="welcome-panel"><div class="eyebrow">BUSINESS MANAGEMENT SYSTEM</div><h1>お疲れさまです、${esc(currentUser.name)} さん</h1><p>${esc(currentUser.role)} ｜ 今日も安全第一でいきましょう。</p></section>
   <div class="section-heading"><h2>今日の予定</h2><button class="text-btn" data-go="schedule">すべて見る ›</button></div>
   <div class="dashboard-schedule">${todays.map(s=>`<div class="dashboard-schedule-row"><strong>${esc(formatTimeDisplay(s.time))}〜${esc(formatTimeDisplay(s.endTime||""))}</strong><span>${esc(s.title)}：${esc(s.project)}</span><small>${esc(s.person)}</small></div>`).join("")||`<div class="empty-state">今日の予定はありません</div>`}</div>
-  <div class="section-heading"><h2>案件の流れ</h2><button class="text-btn" data-go="projects">案件を開く ›</button></div>
-  <div class="dashboard-kanban">${stages.map(stage=>{const items=activeProjects.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key);return `<button class="dashboard-kanban-column dashboard-${stage.key}" data-go="projects"><strong>${stage.name}</strong><b>${items.length}</b></button>`}).join("")}</div>
+  <div class="section-heading"><h2>会社盤</h2><button class="text-btn" data-go="projects">案件を開く ›</button></div>
+  <div class="dashboard-kanban">${stages.map(stage=>{const items=activeProjects.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key);const preview=items.slice(0,2).map(p=>`<div class="dashboard-kanban-preview"><strong>${esc(p.name)}</strong><small>${esc(p.customer||p.site||"")}</small></div>`).join("");const more=items.length>2?`<div class="dashboard-kanban-more">ほか ${items.length-2} 件</div>`:"";return `<button class="dashboard-kanban-column dashboard-${stage.key}" data-go="projects"><div class="dashboard-kanban-head"><strong>${stage.name}</strong><b>${items.length}<small>件</small></b></div><div class="dashboard-kanban-list">${preview||`<div class="dashboard-kanban-none">案件なし</div>`}${more}</div></button>`}).join("")}</div>
   <div class="section-heading"><h2>会社の数字</h2><button class="text-btn" data-go="analytics">STRACを見る ›</button></div>
   <button class="dashboard-strac" data-go="analytics"><div class="dashboard-strac-values"><span>PQ ${money(pq)}</span><span>VQ ${money(vq)}</span><span>MQ ${money(mq)}</span><span>F ${money(f)}</span><strong class="${g<0?'negative':''}">G ${money(g)}</strong></div><div class="dashboard-strac-figure">${stracSvg(pq,vq,mq,f,g)}</div></button>`;
 }
