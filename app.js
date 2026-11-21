@@ -1,24 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBx84q5_wWuZWYvaWVCCzycOc1562sczeY",
-  authDomain: "cannabis-ea8f2.firebaseapp.com",
-  projectId: "cannabis-ea8f2",
-  storageBucket: "cannabis-ea8f2.firebasestorage.app",
-  messagingSenderId: "394976170327",
-  appId: "1:394976170327:web:bf4fca3c4dad70f866ee12"
-};
-
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const firestore = getFirestore(firebaseApp);
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: "select_account" });
-
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
@@ -47,7 +26,6 @@ const initialData = {
 };
 let db = loadDB();
 let currentUser = null;
-let loginNotice = "";
 let currentPage = "dashboard";
 let projectFilter = "すべて";
 let searchTerm = "";
@@ -60,73 +38,14 @@ function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2100)}
 function canEdit(){return ["管理者","管理職","事務担当"].includes(currentUser?.role)}
 function canSeeFinance(){return ["管理者","管理職","事務担当"].includes(currentUser?.role)}
-function showLogin(message=null){
-  if(message!==null) loginNotice=message;
-  $("#loginView").classList.remove("hidden");
-  $("#mainView").classList.add("hidden");
-  const messageEl=$("#authMessage");
-  if(messageEl) messageEl.textContent=loginNotice||"登録済みのGoogleアカウントでログインしてください。";
+function showLogin(){$("#loginView").classList.remove("hidden");$("#mainView").classList.add("hidden")}
+function login(){
+  const key=$("#employeeSelect").value, pin=$("#pinInput").value, emp=employees[key];
+  if(pin!==emp.pin){toast("PINコードが違います");return}
+  currentUser={...emp,key};$("#loginView").classList.add("hidden");$("#mainView").classList.remove("hidden");render("dashboard");
 }
-function showMain(){
-  $("#loginView").classList.add("hidden");
-  $("#mainView").classList.remove("hidden");
-  render("dashboard");
-}
-async function verifyEmployee(user){
-  const employeeRef=doc(firestore,"employees",user.uid);
-  const employeeSnap=await getDoc(employeeRef);
-  if(!employeeSnap.exists()){
-    const message=`社員登録がありません。管理者に次の情報を伝えてください。\\nメール：${user.email||"不明"}\\nUID：${user.uid}`;
-    await signOut(auth);
-    showLogin(message);
-    return;
-  }
-  const employee=employeeSnap.data();
-  if(employee.active!==true || employee.email!==user.email){
-    await signOut(auth);
-    showLogin("このアカウントは利用できません。管理者に確認してください。");
-    return;
-  }
-  loginNotice="";
-  currentUser={
-    uid:user.uid,
-    email:user.email,
-    name:employee.name||user.displayName||"社員",
-    role:employee.role||"現場担当"
-  };
-  showMain();
-}
-async function loginWithGoogle(){
-  const button=$("#googleLoginButton");
-  button.disabled=true;
-  button.textContent="ログイン中…";
-  try{
-    await signInWithPopup(auth,googleProvider);
-  }catch(error){
-    console.error(error);
-    showLogin(error.code==="auth/unauthorized-domain"
-      ?"このURLはFirebaseに未登録です。管理者設定で h-kitade38.github.io を追加してください。"
-      :"Googleログインに失敗しました。通信環境とアカウントを確認してください。");
-  }finally{
-    button.disabled=false;
-    button.textContent="Googleアカウントでログイン";
-  }
-}
-$("#googleLoginButton").addEventListener("click",loginWithGoogle);
-onAuthStateChanged(auth,async user=>{
-  if(!user){
-    currentUser=null;
-    showLogin();
-    return;
-  }
-  try{
-    await verifyEmployee(user);
-  }catch(error){
-    console.error(error);
-    await signOut(auth);
-    showLogin("社員情報を確認できませんでした。Firestore設定を確認してください。");
-  }
-});
+$("#loginButton").addEventListener("click",login);
+$("#pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
 $("#homeButton").addEventListener("click",()=>render("dashboard"));
 $("#backButton").addEventListener("click",()=>render("projects"));
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>render(b.dataset.nav)));
@@ -170,6 +89,18 @@ function dashboardPage(){
     <div class="metric-card"><div class="metric-label">顧客登録数</div><div class="metric-value">${db.customers.length}<small> 社</small></div><div class="metric-foot">顧客マスター</div></div>
     <div class="metric-card"><div class="metric-label">本日の予定</div><div class="metric-value">${todays}<small> 件</small></div><div class="metric-foot">スケジュール登録分</div></div>
   </div>
+  <div class="section-heading"><h2>MQ会計（STRAC図）</h2><span class="sub">デモ数値</span></div>
+  <div class="strac-card">
+    <div class="strac-row"><span class="strac-label">PQ 売上高</span><strong>100万円</strong></div>
+    <div class="strac-bar pq"><span style="width:100%"></span></div>
+    <div class="strac-split-labels"><span>VQ 変動費 <b>40万円</b></span><span>MQ 限界利益 <b>60万円</b></span></div>
+    <div class="strac-bar split"><span class="vq" style="width:40%"></span><span class="mq" style="width:60%"></span></div>
+    <div class="strac-mq-label">MQ 60万円 の内訳</div>
+    <div class="strac-split-labels"><span>F 固定費 <b>50万円</b></span><span>G 利益 <b>10万円</b></span></div>
+    <div class="strac-bar split"><span class="fixed" style="width:83.333%"></span><span class="profit" style="width:16.667%"></span></div>
+    <div class="strac-equation">PQ − VQ ＝ MQ　／　MQ − F ＝ G</div>
+    <p class="strac-note">※表示は構成確認用のサンプルです。実績値とは連動していません。</p>
+  </div>
   <div class="section-heading"><h2>メインメニュー</h2><span class="sub">機能を選択</span></div>
   <div class="menu-grid">${menuItems.filter(x=>allowedMenu(x[0])).slice(0,8).map(tileHTML).join("")}</div>
   <div class="section-heading"><h2>最近の案件</h2><button class="text-btn" data-go="projects">すべて見る ›</button></div>
@@ -200,7 +131,7 @@ function schedulePage(){
  const sorted=[...db.schedules].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
  const groups={};sorted.forEach(s=>(groups[s.date]??=[]).push(s));
  return `<h1 class="page-title">スケジュール</h1><p class="page-subtitle">現場予定・担当者・作業内容を確認します</p><div class="toolbar"><span class="sub" style="flex:1">登録済み ${db.schedules.length} 件</span><button class="small-primary" id="addSchedule">＋ 予定追加</button></div>
- ${Object.keys(groups).length?Object.entries(groups).map(([date,items])=>`<div class="schedule-day">${date.replaceAll("-"," / ")}</div>${items.map(s=>`<article class="schedule-item"><div class="schedule-time">${esc(s.time)}</div><div class="schedule-info"><strong>${esc(s.title)}：${esc(s.project)}</strong><p>${esc(s.site)} ／ ${esc(s.person)}</p><div class="record-actions"><button class="text-btn" data-edit-schedule="${s.id}">編集</button><button class="text-btn danger" data-delete-schedule="${s.id}">削除</button></div></div></article>`).join("")}`).join(""):`<div class="empty-state">予定が登録されていません</div>`}`;
+ ${Object.keys(groups).length?Object.entries(groups).map(([date,items])=>`<div class="schedule-day">${date.replaceAll("-"," / ")}</div>${items.map(s=>`<article class="schedule-item"><div class="schedule-time">${esc(s.time)}${s.endTime?`〜${esc(s.endTime)}`:""}</div><div class="schedule-info"><strong>${esc(s.title)}：${esc(s.project)}</strong><p>${esc(s.site)} ／ ${esc(s.person)}${s.workType?` ／ ${esc(s.workType)}`:""}</p><div class="record-actions"><button class="text-btn" data-edit-schedule="${s.id}">編集</button><button class="text-btn danger" data-delete-schedule="${s.id}">削除</button></div></div></article>`).join("")}`).join(""):`<div class="empty-state">予定が登録されていません</div>`}`;
 }
 function projectDetailPage(){
  const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
@@ -214,7 +145,7 @@ function detailRow(k,v){return `<div class="detail-row"><span>${k}</span><strong
 function comingSoonPage(key){const item=menuItems.find(x=>x[0]===key);return `<h1 class="page-title">${item?.[1]||"機能"}</h1><p class="page-subtitle">${item?.[2]||""}</p><div class="empty-state"><div style="font-size:28px;margin-bottom:8px;color:var(--green)">✧</div>この機能は次の開発段階で実装します。<br>メニュー構成と画面デザインは準備済みです。<br><button class="secondary-btn" data-go="menu" style="margin-top:16px">メニューに戻る</button></div>`}
 function bindPageEvents(){
  $$("[data-go]").forEach(b=>b.addEventListener("click",()=>render(b.dataset.go)));
- $("#logoutButton")?.addEventListener("click",async()=>{await signOut(auth);currentUser=null;showLogin()});
+ $("#logoutButton")?.addEventListener("click",()=>{currentUser=null;showLogin()});
  $("#addProject")?.addEventListener("click",()=>openProjectForm());
  $("#addCustomer")?.addEventListener("click",()=>openCustomerForm());
  $("#addSchedule")?.addEventListener("click",()=>openScheduleForm());
@@ -262,13 +193,15 @@ function openCustomerForm(id){
 function openScheduleForm(id){
  const s=id?db.schedules.find(x=>x.id===id):null;
  openDialog(s?"予定を編集":"予定を追加",[
-  {key:"date",label:"日付",type:"date",required:true,default:new Date().toISOString().slice(0,10)},
-  {key:"time",label:"開始時刻",type:"time",default:"09:00"},{key:"title",label:"予定内容",required:true},
-  {key:"project",label:"関連案件"},{key:"site",label:"場所"},{key:"person",label:"担当者",default:currentUser.name}
- ],s,data=>{const item={...data,id:s?.id||Date.now()};if(s)db.schedules=db.schedules.map(x=>x.id===s.id?item:x);else db.schedules.push(item);saveDB();$("#formDialog").close();toast(s?"予定を更新しました":"予定を追加しました");render("schedule")});
+  {key:"date",label:"作業日（開始日基準）",type:"date",required:true,default:new Date().toISOString().slice(0,10)},
+  {key:"time",label:"開始時刻（例 20:00）",default:"09:00",required:true},{key:"endTime",label:"終了時刻（例 26:00）",default:"18:00",required:true},
+  {key:"workType",label:"勤務区分",type:"select",options:["日中作業","閉店後作業","休日出勤"],default:"日中作業"},
+  {key:"title",label:"予定内容",required:true},{key:"project",label:"関連案件"},{key:"site",label:"場所"},{key:"person",label:"担当者",default:currentUser.name}
+ ],s,data=>{const valid=t=>/^(?:[0-9]|[1-3][0-9]|4[0-7]):[0-5][0-9]$/.test(t);if(!valid(data.time)||!valid(data.endTime)){toast("時刻は00:00〜47:59で入力してください");return}const toMin=t=>{const [h,m]=t.split(":").map(Number);return h*60+m};if(toMin(data.endTime)<=toMin(data.time)){toast("終了時刻は開始時刻より後にしてください");return}const item={...data,id:s?.id||Date.now()};if(s)db.schedules=db.schedules.map(x=>x.id===s.id?item:x);else db.schedules.push(item);saveDB();$("#formDialog").close();toast(s?"予定を更新しました":"予定を追加しました");render("schedule")});
 }
 function deleteProject(id){if(!confirm("この案件を削除しますか？"))return;db.projects=db.projects.filter(x=>x.id!==id);saveDB();toast("案件を削除しました");render("projects")}
 function deleteSchedule(id){if(!confirm("この予定を削除しますか？"))return;db.schedules=db.schedules.filter(x=>x.id!==id);saveDB();toast("予定を削除しました");render("schedule")}
 $("#entityForm").addEventListener("submit",e=>{e.preventDefault();if(!editing)return;const data=Object.fromEntries(new FormData(e.currentTarget).entries());editing.onSave(data)});
 function closeDialog(){$("#formDialog").close();editing=null}
 $("#closeDialog").addEventListener("click",closeDialog);$("#cancelDialog").addEventListener("click",closeDialog);
+render("dashboard");

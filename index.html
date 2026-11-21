@@ -6,11 +6,6 @@
   <meta name="theme-color" content="#0d4937">
   <title>CANNABIS | カナビス</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="CANNABIS">
 </head>
 <body>
   <div id="app">
@@ -33,11 +28,17 @@
       </div>
       <div class="login-card">
         <h1>ログイン</h1>
-        <p class="login-help">登録済みのGoogleアカウントでログインしてください。</p>
-        <button id="googleLoginButton" class="primary-btn full" type="button">
-          Googleアカウントでログイン
-        </button>
-        <p id="authMessage" class="demo-note" role="status">社員登録が完了しているアカウントのみ利用できます。</p>
+        <label for="employeeSelect">社員を選択</label>
+        <select id="employeeSelect">
+          <option value="admin">管理者（デモ）</option>
+          <option value="manager">管理職（デモ）</option>
+          <option value="office">事務担当（デモ）</option>
+          <option value="field">現場担当（デモ）</option>
+        </select>
+        <label for="pinInput">PINコード（仮）</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="4" placeholder="4桁の数字" value="1234">
+        <button id="loginButton" class="primary-btn full">ログインする</button>
+        <p class="demo-note">デモ用PIN：管理者 1234 ／ 管理職 2222 ／ 事務 4444 ／ 現場 3333</p>
       </div>
       <div class="login-foot">CANNABIS BUSINESS MANAGEMENT</div>
     </section>
@@ -82,6 +83,6 @@
       </form>
     </dialog>
   </div>
-  <script type="module" src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
