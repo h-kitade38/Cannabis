@@ -166,9 +166,9 @@ const menuItems=[
 ];
 function navActive(page){$$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.nav===page||(page==="projectDetail"&&b.dataset.nav==="projects")))}
 function render(page){
-  currentPage=page;searchTerm="";navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail"].includes(page));
+  currentPage=page;searchTerm="";navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail","projectDocument"].includes(page));
   const content=$("#content");
-  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,attendance:attendancePage,customers:customersPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
+  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,attendance:attendancePage,customers:customersPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage,projectDocument:projectDocumentPage};
   if(pages[page])content.innerHTML=pages[page]();
   else content.innerHTML=comingSoonPage(page);
   bindPageEvents();
@@ -342,7 +342,7 @@ function schedulePage(){
      const a=timeToMinutes(s.time);let b=timeToMinutes(s.endTime||s.time);if(b<=a)b+=1440;const x=Math.max(timelineStart,a),y=Math.min(timelineEnd,b);if(y<=x)return "";
      return `<button class="gantt-bar" style="left:${position(x)}%;width:${Math.max(.8,(y-x)/total*100)}%;top:${2+s._lane*27}px;background:${scheduleColor(s)}" data-edit-schedule="${s.id}" title="${esc(s.title)}">${esc(s.title)}</button>`;
    }).join("");
-   return `<div class="gantt-row" style="min-height:${Math.max(40,laneCount*27+8)}px"><div class="gantt-name ${active?"is-working":"is-away"}"><span>${esc(name)}</span></div><div class="gantt-track">${ticks.map(h=>`<i style="left:${position(h*60)}%"></i>`).join("")}${bars}</div></div>`;
+   return `<div class="gantt-row ${name==="全体"?"gantt-overall-row":""}" style="min-height:${Math.max(40,laneCount*27+8)}px"><div class="gantt-name ${name==="全体"?"is-overall":active?"is-working":"is-away"}"><span>${esc(name)}</span></div><div class="gantt-track">${ticks.map(h=>`<i style="left:${position(h*60)}%"></i>`).join("")}${bars}</div></div>`;
  }).join("")}</div></div>`;
  const calendar=`<div class="month-calendar"><div class="month-heading"><button class="secondary-btn" id="prevMonth">‹</button><strong>${selectedScheduleMonth.replace("-","年 ")}月</strong><button class="secondary-btn" id="nextMonth">›</button></div><div class="month-list">${Array.from({length:days},(_,i)=>{const d=i+1;const date=`${selectedScheduleMonth}-${String(d).padStart(2,"0")}`;const events=db.schedules.filter(s=>s.date===date).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));const weekday=["日","月","火","水","木","金","土"][new Date(date+"T12:00:00").getDay()];return `<button class="month-day ${date===selectedScheduleDate?"selected":""}" data-pick-date="${date}"><span class="month-date-number">${d}日（${weekday}）</span><span class="month-day-events">${events.length?events.map(s=>`<small class="month-event" style="background:${scheduleColor(s)}"><strong>${esc(s.title)}</strong><span>${esc(s.person||"担当未設定")}</span><span>${esc(s.site||"場所未設定")}</span>${s.allDay?`<span>終日 09:00〜18:00</span>`:`<span>${esc(formatTimeDisplay(s.time))}〜${esc(formatTimeDisplay(s.endTime||""))}</span>`}</small>`).join(""):`<i class="month-no-event">予定なし</i>`}</span></button>`}).join("")}</div></div>`;
  return `<h1 class="page-title">スケジュール</h1><p class="page-subtitle">社員ごとの予定と空き時間を確認します</p><div class="schedule-toolbar"><div class="view-switch"><button data-sview="day" class="${scheduleView==="day"?"active":""}">1日一覧</button><button data-sview="gantt" class="${scheduleView==="gantt"?"active":""}">タイムライン</button><button data-sview="month" class="${scheduleView==="month"?"active":""}">月間</button></div><button class="small-primary" id="addSchedule">＋ 予定追加</button></div>
@@ -458,7 +458,15 @@ function deleteAttendance(id){
 }
 function projectDetailPage(){
  const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
- return `<h1 class="page-title">案件詳細</h1><p class="page-subtitle">案件情報を確認します</p><div class="detail-card"><div class="record-top"><strong>${esc(p.name)}</strong><span class="status">${esc(p.status)}</span></div>${detailRow("顧客",p.customer)}${detailRow("現場",p.site)}${detailRow("案件種別",p.type)}${detailRow("作業予定日",p.date)}${detailRow("担当者",p.person)}${detailRow("見積・受注金額",money(p.amount))}${detailRow("売上計上月",p.salesMonth||"")}${detailRow("PQ",money(p.pq||0))}${detailRow("VQ",money(p.vq||0))}${detailRow("作業完了",p.workCompleted?"完了":"未完了")}${detailRow("売上処理",p.salesProcessed?"処理済":"未処理")}${detailRow("備考",p.notes)}<div class="detail-row"><span>関連スケジュール</span><strong>${db.schedules.filter(x=>x.projectId===p.id).length}件</strong></div>${db.schedules.filter(x=>x.projectId===p.id).map(x=>`<div class="related-schedule">${esc(x.date)}　${x.allDay?"終日":esc(formatTimeDisplay(x.time))}　${esc(x.title)}</div>`).join("")}</div><div class="toolbar"><button class="secondary-btn" data-go="projects" style="flex:1">一覧へ戻る</button>${canEdit()?`<button class="primary-btn" id="editCurrentProject" style="flex:1">編集する</button><button class="secondary-btn" id="deleteCurrentProject">削除</button>`:""}</div>`;
+ const progress=[['prepDocs','申請書類'],['prepStaff','人員調整'],['prepDate','日程調整'],['workCompleted','作業完了'],['salesProcessed','売上処理']];
+ const progressHTML=progress.map(([key,label])=>`<label class="project-progress-item"><input type="checkbox" data-project-progress="${key}" data-id="${p.id}" ${p[key]?'checked':''} ${key==='salesProcessed'&&!p.workCompleted?'disabled':''}><span>${label}</span></label>`).join('');
+ const docs=[['見積作成','estimate'],['報告書作成','report'],['請求書作成','invoice'],['納品書作成','delivery'],['発注書作成','purchase']];
+ return `<h1 class="page-title">案件詳細</h1><p class="page-subtitle">案件情報を確認します</p><div class="detail-card"><div class="record-top"><strong>${esc(p.name)}</strong><span class="status">${esc(p.status)}</span></div>${detailRow("顧客",p.customer)}${detailRow("現場",p.site)}${detailRow("案件種別",p.type)}${detailRow("作業予定日",p.date)}${detailRow("担当者",p.person)}${detailRow("見積・受注金額",money(p.amount))}${detailRow("売上計上月",p.salesMonth||"")}${detailRow("PQ",money(p.pq||0))}${detailRow("VQ",money(p.vq||0))}<section class="project-progress"><h3>進捗状況</h3><div class="project-progress-list">${progressHTML}</div><p class="project-progress-note">作業未完了に戻すと、準備3項目も未完了になり、案件は自動的に仕掛品へ戻ります。</p></section>${detailRow("備考",p.notes)}<div class="detail-row"><span>関連スケジュール</span><strong>${db.schedules.filter(x=>x.projectId===p.id).length}件</strong></div>${db.schedules.filter(x=>x.projectId===p.id).map(x=>`<div class="related-schedule">${esc(x.date)}　${x.allDay?"終日":esc(formatTimeDisplay(x.time))}　${esc(x.title)}</div>`).join("")}</div><section class="project-documents"><h3>帳票作成</h3><div class="project-doc-buttons">${docs.map(([label,type])=>`<button class="secondary-btn" data-project-doc="${type}">${label}</button>`).join("")}</div></section><div class="toolbar"><button class="secondary-btn" data-go="projects" style="flex:1">一覧へ戻る</button>${canEdit()?`<button class="primary-btn" id="editCurrentProject" style="flex:1">編集する</button><button class="secondary-btn" id="deleteCurrentProject">削除</button>`:""}</div>`;
+}
+function projectDocumentPage(){
+ const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
+ const labels={estimate:'見積作成',report:'報告書作成',invoice:'請求書作成',delivery:'納品書作成',purchase:'発注書作成'};
+ return `<h1 class="page-title">${labels[window.selectedDocumentType]||'帳票作成'}</h1><p class="page-subtitle">${esc(p.name)} に紐づく帳票</p><div class="empty-state">この画面は帳票作成機能の準備段階です。<br>次の開発段階で入力項目・明細・PDF出力を実装します。</div><div class="toolbar"><button class="secondary-btn" data-go="projectDetail" style="flex:1">案件詳細へ戻る</button></div>`;
 }
 function customerDetailPage(){
  const c=db.customers.find(x=>x.id===Number(window.selectedId));if(!c)return customersPage();
@@ -492,7 +500,7 @@ function bindPageEvents(){
  $$('[data-presence]').forEach(b=>b.addEventListener('click',()=>{db.staffAvailability=db.staffAvailability||{};const n=b.dataset.presence;db.staffAvailability[n]=db.staffAvailability[n]===false?true:false;saveDB();render('schedule')}));
  $$('[data-stage-project]').forEach(b=>b.addEventListener('click',()=>moveProjectStage(Number(b.dataset.stageProject),b.dataset.stage)));
  $$('[data-prep]').forEach(b=>b.addEventListener('change',()=>{const p=db.projects.find(x=>x.id===Number(b.dataset.id));if(!p)return;p[{docs:'prepDocs',date:'prepDate',staff:'prepStaff'}[b.dataset.prep]]=b.checked;saveDB();render('projects')}));
- $$('[data-goods-check]').forEach(b=>b.addEventListener('change',()=>{const p=db.projects.find(x=>x.id===Number(b.dataset.id));if(!p)return;p[b.dataset.goodsCheck]=b.checked;p.workflowStage=(p.workCompleted&&p.salesProcessed)?'archived':'goods';saveDB();render('projects');toast('チェック項目を更新しました')}));
+ $$('[data-goods-check]').forEach(b=>b.addEventListener('change',()=>updateProjectProgress(Number(b.dataset.id),b.dataset.goodsCheck,b.checked,'projects')));
  $("#financeMonth")?.addEventListener("change",e=>{selectedFinanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("analytics")});
  $("#settingsYear")?.addEventListener("change",e=>{const y=String(e.target.value||new Date().getFullYear()).slice(0,4);selectedFinanceMonth=`${y}-01`;render("settings")});
  $("#saveLeaveBalance")?.addEventListener("click",()=>{if(currentUser.role!=="管理者"){toast("有給残日数の変更は管理者のみ可能です");return}const paid=Number($("#paidLeaveBalance").value);if(paid<0||!Number.isFinite(paid)){toast("残日数を正しく入力してください");return}const balance=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};balance.paid=paid;db.leaveBalances[currentUser.uid]=balance;saveDB();toast("有給残日数を保存しました")});
@@ -500,7 +508,19 @@ function bindPageEvents(){
  $("#searchBox")?.addEventListener("input",e=>{searchTerm=e.target.value;const y=window.scrollY;render(currentPage);const input=$("#searchBox");input.focus();input.setSelectionRange(input.value.length,input.value.length);window.scrollTo(0,y)});
  $$("[data-filter]").forEach(b=>b.addEventListener("click",()=>{projectFilter=b.dataset.filter;render("projects")}));
  $$("[data-project-mode]").forEach(b=>b.addEventListener("click",()=>{projectPageMode=b.dataset.projectMode;render("projects")}));
+function updateProjectProgress(id,key,checked,returnPage='projectDetail'){
+ const p=db.projects.find(x=>x.id===id);if(!p)return;
+ p[key]=checked;
+ if(key==='workCompleted'&&!checked){p.prepDocs=false;p.prepStaff=false;p.prepDate=false;p.salesProcessed=false;p.workflowStage='wip';saveDB();render(returnPage);toast('作業未完了に戻し、仕掛品へ戻しました');return;}
+ if(key==='salesProcessed'&&checked&&!p.workCompleted){p.salesProcessed=false;toast('作業完了後に売上処理をチェックしてください');}
+ if(key==='salesProcessed'&&checked&&p.workCompleted)p.workflowStage='archived';
+ if(key==='salesProcessed'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
+ if(['prepDocs','prepStaff','prepDate'].includes(key)&&!checked&&p.workflowStage==='goods')p.workflowStage='wip';
+ saveDB();render(returnPage);toast('進捗状況を更新しました');
+}
  $$("[data-detail-project]").forEach(b=>b.addEventListener("click",()=>{window.selectedId=b.dataset.detailProject;render("projectDetail")}));
+ $$('[data-project-progress]').forEach(b=>b.addEventListener('change',()=>updateProjectProgress(Number(b.dataset.id),b.dataset.projectProgress,b.checked)));
+ $$('[data-project-doc]').forEach(b=>b.addEventListener('click',()=>{window.selectedDocumentType=b.dataset.projectDoc;render('projectDocument')}));
  $$("[data-edit-project]").forEach(b=>b.addEventListener("click",()=>openProjectForm(Number(b.dataset.editProject))));
  $$("[data-detail-customer]").forEach(b=>b.addEventListener("click",()=>{window.selectedId=b.dataset.detailCustomer;render("customerDetail")}));
  $$("[data-edit-customer]").forEach(b=>b.addEventListener("click",()=>openCustomerForm(Number(b.dataset.editCustomer))));
