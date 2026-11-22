@@ -194,3 +194,25 @@
 .project-doc-buttons button{font-size:11px;padding:12px 7px;min-height:42px}
 @media(max-width:360px){.project-doc-buttons{grid-template-columns:1fr}}
 .gantt-overall-row .gantt-track{background-color:#fff5f4}
+
+/* v1.3 iPhone viewport, Japanese month calendar, and STRAC per-project metrics */
+html,body{min-height:100%;min-height:100dvh;background:var(--bg)}
+body{padding:0;margin:0;overscroll-behavior-y:none}
+#app{min-height:100dvh;min-height:100svh}
+.login-screen{min-height:100vh;min-height:100dvh;min-height:100svh;padding-bottom:calc(32px + env(safe-area-inset-bottom));}
+.content{min-height:calc(100dvh - 118px);padding-bottom:calc(82px + env(safe-area-inset-bottom));}
+.bottom-nav{bottom:0;padding-bottom:calc(7px + env(safe-area-inset-bottom));}
+.month-grid{grid-template-columns:repeat(7,minmax(0,1fr));align-items:stretch;gap:3px}
+.month-grid>b{font-size:10px;text-align:center;padding:7px 0;color:var(--muted)}
+.month-grid>b.sat{color:#326da8}.month-grid>b.sun{color:#c34a4a}
+.month-day{width:100%;min-width:0;min-height:76px;height:auto;align-items:stretch;justify-content:flex-start;text-align:left;padding:4px 3px;gap:3px;overflow:visible}
+.month-day>span{font-weight:800;font-size:11px;text-align:left;padding-left:2px}
+.month-day>i{font-size:8px;color:#9aa49e;background:transparent;padding:0;text-align:center}
+.month-event{display:block;min-width:0;white-space:normal;overflow-wrap:anywhere;text-overflow:clip;font-size:8px;line-height:1.25;padding:2px 3px;border-radius:3px;color:#fff}
+.month-event strong,.month-event span{display:block;font-size:inherit;overflow-wrap:anywhere}
+.month-day.selected{border:2px solid var(--green);background:#eef5ef}
+.strac-unit-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:9px 0 4px}
+.strac-unit-values>div{background:#f1f5f2;border:1px solid var(--line);border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.strac-unit-values span{font-size:10px;color:var(--muted);font-weight:700}
+.strac-unit-values strong{font-size:13px;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:390px){.month-day{min-height:66px;padding:3px 2px}.month-event{font-size:7px;padding:2px}.strac-unit-values{gap:4px}.strac-unit-values strong{font-size:11px}}
