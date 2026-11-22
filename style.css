@@ -219,19 +219,3 @@ body{padding:0;margin:0;overscroll-behavior-y:none}
 
 /* v1.4: employee master and visible app version */
 .app-version{margin:24px 0 8px;text-align:center;color:#87958f;font-size:12px;letter-spacing:.12em}
-
-/* v1.5 visual consistency */
-.menu-icon-img{display:block;width:42px;height:42px;object-fit:contain;border-radius:10px}
-.tile-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 48px}
-.strac-layout{display:flex;flex-direction:column;gap:14px}
-.pvmq-figure,.strac-figure{width:100%;min-width:0;overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
-.pvmq-svg{display:block;width:100%;height:auto;max-height:250px}
-.gantt-wrap{position:relative;isolation:isolate}
-.gantt-name{position:sticky;left:0;z-index:5;box-shadow:2px 0 3px rgba(20,50,35,.08)}
-.gantt-head .gantt-name{z-index:8}
-.gantt-overall-row .gantt-name.is-overall{background:#f8dede!important;color:#8b2929!important;border-right:2px solid #d88b8b}
-.gantt-overall-row .gantt-track{background-color:#fffafa}
-.project-progress-item,.prep-checks label,.goods-checks label{min-height:38px;display:flex;align-items:center;gap:8px}
-.project-progress-item input,.prep-checks input,.goods-checks input{width:19px;height:19px;flex:0 0 19px}
-.strac-layout .strac-figure svg{width:100%;height:auto}
-@media(min-width:760px){.strac-layout{display:grid;grid-template-columns:minmax(260px,.75fr) minmax(0,1.5fr);align-items:start}}
