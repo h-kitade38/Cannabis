@@ -22,7 +22,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.4";
+const APP_VERSION = "v1.5";
 const employees = {
   admin:{name:"管理者",role:"管理者",pin:"1234"},
   manager:{name:"山田 太郎",role:"管理職",pin:"2222"},
@@ -205,8 +205,14 @@ function allowedMenu(key){
   if(["reports","applications","equipment","inventory","schedule","projects","customers"].includes(key))return true;
   return currentUser.role!=="現場担当";
 }
-function tileHTML(x){return `<button class="menu-tile" data-go="${x[0]}"><span class="tile-icon">${x[3]}</span><span><span class="tile-title">${x[1]}</span><span class="tile-desc">${x[2]}</span></span></button>`}
-function menuPage(){return `<h1 class="page-title">メニュー</h1><p class="page-subtitle">業務機能を選択してください</p><div class="menu-list">${menuItems.filter(x=>allowedMenu(x[0])).map(x=>`<button class="menu-row" data-go="${x[0]}"><span class="tile-icon">${x[3]}</span><span><strong>${x[1]}</strong><small>${x[2]}</small></span><span class="chevron">›</span></button>`).join("")}</div><div class="section-heading"><h2>アカウント</h2></div><div class="profile-strip"><div class="avatar">${esc(currentUser.name.slice(0,1))}</div><div><strong>${esc(currentUser.name)}</strong><small>${esc(currentUser.role)}</small></div></div><button class="secondary-btn" id="logoutButton" style="width:100%">ログアウト</button><p class="app-version">CANNABIS ${APP_VERSION}</p>`}
+const menuIconSVG={
+  employeeMaster:`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.1"/><path d="M3.5 19v-1.2a5.5 5.5 0 0 1 11 0V19"/><path d="M16 5.2a3.1 3.1 0 0 1 0 5.9M17.2 13.7a4.7 4.7 0 0 1 3.3 4.5V19"/></svg>`,
+  equipment:`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.2"/><path d="M7 8h10M7 16h10M8 11.5h.01M12 11.5h.01M16 11.5h.01"/><path d="M9 2.5v1.5M15 2.5v1.5"/></svg>`,
+  settings:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--green3)"/><circle cx="15" cy="12" r="2" fill="var(--green3)"/><circle cx="8" cy="18" r="2" fill="var(--green3)"/></svg>`
+};
+function menuIconHTML(x){return menuIconSVG[x[0]]||x[3]}
+function tileHTML(x){return `<button class="menu-tile" data-go="${x[0]}"><span class="tile-icon">${menuIconHTML(x)}</span><span><span class="tile-title">${x[1]}</span><span class="tile-desc">${x[2]}</span></span></button>`}
+function menuPage(){return `<h1 class="page-title">メニュー</h1><p class="page-subtitle">業務機能を選択してください</p><div class="menu-list">${menuItems.filter(x=>allowedMenu(x[0])).map(x=>`<button class="menu-row" data-go="${x[0]}"><span class="tile-icon">${menuIconHTML(x)}</span><span><strong>${x[1]}</strong><small>${x[2]}</small></span><span class="chevron">›</span></button>`).join("")}</div><div class="section-heading"><h2>アカウント</h2></div><div class="profile-strip"><div class="avatar">${esc(currentUser.name.slice(0,1))}</div><div><strong>${esc(currentUser.name)}</strong><small>${esc(currentUser.role)}</small></div></div><button class="secondary-btn" id="logoutButton" style="width:100%">ログアウト</button><p class="app-version">CANNABIS ${APP_VERSION}</p>`}
 function projectCard(p){return `<article class="record-card"><div class="record-top"><div><div class="record-title">${esc(p.name)}</div><div class="record-meta">${esc(p.customer)} ・ ${esc(p.date||"日程未定")}<br>${esc(p.person||"担当未設定")} ／ ${esc(p.site||"現場未設定")}</div></div><span class="status ${p.status==="完了"?"done":p.status==="予定"?"wait":""}">${esc(p.status)}</span></div><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button></div></article>`}
 function projectsPage(){
  const stages=[{key:"material",name:"① 材料"},{key:"wip",name:"② 仕掛品"},{key:"goods",name:"③ 商品"}];
