@@ -550,8 +550,10 @@ function updateProjectProgress(id,key,checked,returnPage='projectDetail'){
  if(key==='estimateApproved'){if(checked){p.workflowStage='wip';}else{p.estimateApproved=false;p.prepDocs=false;p.prepDate=false;p.workCompleted=false;p.salesProcessed=false;p.workflowStage='material';saveDB();render(returnPage);toast('見積承認を解除し、材料へ戻しました');return;}}
  if(key==='workCompleted'&&!checked){p.prepDocs=false;p.prepDate=false;p.salesProcessed=false;p.workflowStage='wip';saveDB();render(returnPage);toast('作業未完了に戻し、仕掛品へ戻しました');return;}
  if(key==='salesProcessed'&&checked&&!p.workCompleted){p.salesProcessed=false;toast('作業完了後に売上処理をチェックしてください');}
- if(key==='cleared'&&checked&&!p.salesProcessed){p.cleared=false;toast('売上処理後に消し込みできます');return;}\n if(key==='cleared'&&checked&&p.salesProcessed&&p.workCompleted)p.workflowStage='archived';
- if(key==='salesProcessed'&&!checked){p.cleared=false;if(p.workflowStage==='archived')p.workflowStage='goods';}\n if(key==='cleared'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
+ if(key==='cleared'&&checked&&!p.salesProcessed){p.cleared=false;toast('売上処理後に消し込みできます');return;}
+ if(key==='cleared'&&checked&&p.salesProcessed&&p.workCompleted)p.workflowStage='archived';
+ if(key==='salesProcessed'&&!checked){p.cleared=false;if(p.workflowStage==='archived')p.workflowStage='goods';}
+ if(key==='cleared'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
  if(['prepDocs','prepDate'].includes(key)&&!checked&&p.workflowStage==='goods')p.workflowStage='wip';
  saveDB();render(returnPage);toast('進捗状況を更新しました');
 }
