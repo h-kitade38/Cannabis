@@ -216,3 +216,6 @@ body{padding:0;margin:0;overscroll-behavior-y:none}
 .strac-unit-values span{font-size:10px;color:var(--muted);font-weight:700}
 .strac-unit-values strong{font-size:13px;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap}
 @media(max-width:390px){.month-day{min-height:66px;padding:3px 2px}.month-event{font-size:7px;padding:2px}.strac-unit-values{gap:4px}.strac-unit-values strong{font-size:11px}}
+
+/* v1.4: employee master and visible app version */
+.app-version{margin:24px 0 8px;text-align:center;color:#87958f;font-size:12px;letter-spacing:.12em}
