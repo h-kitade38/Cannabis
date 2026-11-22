@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+  getRedirectResult, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
@@ -22,7 +23,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.5";
+const APP_VERSION = "v1.5.2";
 const employees = {
   admin:{name:"管理者",role:"管理者",pin:"1234"},
   manager:{name:"山田 太郎",role:"管理職",pin:"2222"},
@@ -124,18 +125,26 @@ async function loginWithGoogle(){
   button.disabled=true;
   button.textContent="ログイン中…";
   try{
-    await signInWithPopup(auth,googleProvider);
+    // iPhone Safari / ホーム画面追加時はポップアップよりリダイレクト方式を使用
+    await signInWithRedirect(auth,googleProvider);
   }catch(error){
-    console.error(error);
+    console.error("Google sign-in redirect failed:",error);
     showLogin(error.code==="auth/unauthorized-domain"
       ?"このURLはFirebaseに未登録です。管理者設定で h-kitade38.github.io を追加してください。"
-      :"Googleログインに失敗しました。通信環境とアカウントを確認してください。");
-  }finally{
+      :`Googleログインを開始できませんでした（${error.code||"unknown"}）。ページを再読み込みして再試行してください。`);
     button.disabled=false;
     button.textContent="Googleアカウントでログイン";
   }
 }
 $("#googleLoginButton").addEventListener("click",loginWithGoogle);
+
+// リダイレクト認証から戻った際のエラーを画面に表示
+getRedirectResult(auth).catch(error=>{
+  console.error("Google sign-in redirect result failed:",error);
+  showLogin(error.code==="auth/unauthorized-domain"
+    ?"このURLはFirebaseに未登録です。管理者設定で h-kitade38.github.io を追加してください。"
+    :`Google認証から戻れませんでした（${error.code||"unknown"}）。Firebaseの認証ドメイン設定を確認してください。`);
+});
 onAuthStateChanged(auth,async user=>{
   if(!user){
     currentUser=null;
@@ -550,10 +559,8 @@ function updateProjectProgress(id,key,checked,returnPage='projectDetail'){
  if(key==='estimateApproved'){if(checked){p.workflowStage='wip';}else{p.estimateApproved=false;p.prepDocs=false;p.prepDate=false;p.workCompleted=false;p.salesProcessed=false;p.workflowStage='material';saveDB();render(returnPage);toast('見積承認を解除し、材料へ戻しました');return;}}
  if(key==='workCompleted'&&!checked){p.prepDocs=false;p.prepDate=false;p.salesProcessed=false;p.workflowStage='wip';saveDB();render(returnPage);toast('作業未完了に戻し、仕掛品へ戻しました');return;}
  if(key==='salesProcessed'&&checked&&!p.workCompleted){p.salesProcessed=false;toast('作業完了後に売上処理をチェックしてください');}
- if(key==='cleared'&&checked&&!p.salesProcessed){p.cleared=false;toast('売上処理後に消し込みできます');return;}
- if(key==='cleared'&&checked&&p.salesProcessed&&p.workCompleted)p.workflowStage='archived';
- if(key==='salesProcessed'&&!checked){p.cleared=false;if(p.workflowStage==='archived')p.workflowStage='goods';}
- if(key==='cleared'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
+ if(key==='cleared'&&checked&&!p.salesProcessed){p.cleared=false;toast('売上処理後に消し込みできます');return;}\n if(key==='cleared'&&checked&&p.salesProcessed&&p.workCompleted)p.workflowStage='archived';
+ if(key==='salesProcessed'&&!checked){p.cleared=false;if(p.workflowStage==='archived')p.workflowStage='goods';}\n if(key==='cleared'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
  if(['prepDocs','prepDate'].includes(key)&&!checked&&p.workflowStage==='goods')p.workflowStage='wip';
  saveDB();render(returnPage);toast('進捗状況を更新しました');
 }

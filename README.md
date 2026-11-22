@@ -1,4 +1,4 @@
-# CANNABIS v1.5
+# CANNABIS v1.5.2
 
 ## 今回の変更
 - STRAC画面にP・V・M・Qの関係図を追加。P/V/Mは月次PQ/VQ/MQを案件数Qで割った値（小数1桁）、Qは対象案件数。
@@ -12,9 +12,3 @@
 - 保存方式は従来どおりlocalStorageです。Firestoreへの業務データ同期は未実装です。
 - Google認証・Firestoreの社員許可登録は従来どおりです。
 - iPhone実機での表示・操作確認は未実施です。
-
-
-## v1.5.1 修正
-- 案件進捗処理内に混入していた不要な文字列エスケープを修正。
-- Firebase Google認証の初期化・ログイン処理・認証状態監視はv1.4と同じ構成を維持。
-- GitHub Pagesへ反映する際は、このフォルダの中身（index.html / app.js / style.css / manifest.webmanifest / icons）をリポジトリの公開ルートへ配置してください。ZIPファイル自体や親フォルダごと配置しないでください。
