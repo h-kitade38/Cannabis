@@ -22,7 +22,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.4";
+const APP_VERSION = "v1.5";
 const employees = {
   admin:{name:"管理者",role:"管理者",pin:"1234"},
   manager:{name:"山田 太郎",role:"管理職",pin:"2222"},
@@ -205,18 +205,19 @@ function allowedMenu(key){
   if(["reports","applications","equipment","inventory","schedule","projects","customers"].includes(key))return true;
   return currentUser.role!=="現場担当";
 }
-function tileHTML(x){return `<button class="menu-tile" data-go="${x[0]}"><span class="tile-icon">${x[3]}</span><span><span class="tile-title">${x[1]}</span><span class="tile-desc">${x[2]}</span></span></button>`}
-function menuPage(){return `<h1 class="page-title">メニュー</h1><p class="page-subtitle">業務機能を選択してください</p><div class="menu-list">${menuItems.filter(x=>allowedMenu(x[0])).map(x=>`<button class="menu-row" data-go="${x[0]}"><span class="tile-icon">${x[3]}</span><span><strong>${x[1]}</strong><small>${x[2]}</small></span><span class="chevron">›</span></button>`).join("")}</div><div class="section-heading"><h2>アカウント</h2></div><div class="profile-strip"><div class="avatar">${esc(currentUser.name.slice(0,1))}</div><div><strong>${esc(currentUser.name)}</strong><small>${esc(currentUser.role)}</small></div></div><button class="secondary-btn" id="logoutButton" style="width:100%">ログアウト</button><p class="app-version">CANNABIS ${APP_VERSION}</p>`}
+function menuIcon(id){return `<img class="menu-icon-img" src="icons/menu/${id}.png" alt="">`}
+function tileHTML(x){return `<button class="menu-tile" data-go="${x[0]}"><span class="tile-icon">${menuIcon(x[0])}</span><span><span class="tile-title">${x[1]}</span><span class="tile-desc">${x[2]}</span></span></button>`}
+function menuPage(){return `<h1 class="page-title">メニュー</h1><p class="page-subtitle">業務機能を選択してください</p><div class="menu-list">${menuItems.filter(x=>allowedMenu(x[0])).map(x=>`<button class="menu-row" data-go="${x[0]}"><span class="tile-icon">${menuIcon(x[0])}</span><span><strong>${x[1]}</strong><small>${x[2]}</small></span><span class="chevron">›</span></button>`).join("")}</div><div class="section-heading"><h2>アカウント</h2></div><div class="profile-strip"><div class="avatar">${esc(currentUser.name.slice(0,1))}</div><div><strong>${esc(currentUser.name)}</strong><small>${esc(currentUser.role)}</small></div></div><button class="secondary-btn" id="logoutButton" style="width:100%">ログアウト</button><p class="app-version">CANNABIS ${APP_VERSION}</p>`}
 function projectCard(p){return `<article class="record-card"><div class="record-top"><div><div class="record-title">${esc(p.name)}</div><div class="record-meta">${esc(p.customer)} ・ ${esc(p.date||"日程未定")}<br>${esc(p.person||"担当未設定")} ／ ${esc(p.site||"現場未設定")}</div></div><span class="status ${p.status==="完了"?"done":p.status==="予定"?"wait":""}">${esc(p.status)}</span></div><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button></div></article>`}
 function projectsPage(){
  const stages=[{key:"material",name:"① 材料"},{key:"wip",name:"② 仕掛品"},{key:"goods",name:"③ 商品"}];
- const active=db.projects.filter(p=>p.workflowStage!=="archived"&&!p.salesProcessed);
+ const active=db.projects.filter(p=>p.workflowStage!=="archived"&&!p.cleared);
  const all=db.projects.filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
  const list=all.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>`<article class="project-list-card"><button class="project-list-main" data-detail-project="${p.id}"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")} ・ ${esc(p.date||"日程未定")}</small><small>${esc(p.workflowStage==="archived"||p.salesProcessed?"完了":p.workflowStage==="wip"?"仕掛品":p.workflowStage==="goods"?"商品":"材料")} ／ ${p.salesProcessed?"売上処理済":"進行中"}</small></button><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button></div></article>`).join("");
  return `<h1 class="page-title">案件管理</h1><p class="page-subtitle">会社盤で進捗を確認し、全案件一覧から過去の案件も検索できます</p>
  <div class="project-mode-switch"><button data-project-mode="board" class="${projectPageMode==="board"?"active":""}">会社盤</button><button data-project-mode="list" class="${projectPageMode==="list"?"active":""}">全案件一覧（${db.projects.length}）</button></div>
  <div class="toolbar"><input class="search-input" id="searchBox" placeholder="案件名・顧客名で検索"><button class="small-primary" id="addProject">＋ 新規</button></div>
- ${projectPageMode==="list"?`<div class="project-list">${list||`<div class="empty-state">案件がありません</div>`}</div>`:`<div class="kanban-board">${stages.map(stage=>{const items=active.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key).filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));return `<section class="kanban-column kanban-${stage.key}"><header><strong>${stage.name}</strong><b>${items.length}</b></header><div class="kanban-cards">${items.length?items.map(p=>`<article class="kanban-card"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")}</small><small>${esc(p.person||"担当未設定")} ・ ${esc(p.date||"日程未定")}</small><div class="kanban-card-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button>${stage.key==="material"?`<div class="prep-checks material-checks"><label><input type="checkbox" data-project-progress="estimateApproved" data-id="${p.id}" ${p.estimateApproved?"checked":""}>見積承認</label></div>`:""}${stage.key==="wip"?`<div class="prep-checks"><label><input type="checkbox" data-prep="docs" data-id="${p.id}" ${p.prepDocs?"checked":""}>申請書類</label><label><input type="checkbox" data-prep="date" data-id="${p.id}" ${p.prepDate?"checked":""}>日程調整</label><button class="text-btn" data-stage-project="${p.id}" data-stage="goods" ${p.prepDocs&&p.prepDate?"":"disabled"}>準備完了 →</button></div>`:""}${stage.key==="goods"?`<div class="goods-checks"><label><input type="checkbox" data-goods-check="workCompleted" data-id="${p.id}" ${p.workCompleted?"checked":""}>作業完了</label><label><input type="checkbox" data-goods-check="salesProcessed" data-id="${p.id}" ${p.salesProcessed?"checked":""}>売上処理</label></div>`:""}</div></article>`).join(""):`<div class="kanban-empty">案件なし</div>`}</div></section>`}).join("")}</div>`}`;
+ ${projectPageMode==="list"?`<div class="project-list">${list||`<div class="empty-state">案件がありません</div>`}</div>`:`<div class="kanban-board">${stages.map(stage=>{const items=active.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key).filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));return `<section class="kanban-column kanban-${stage.key}"><header><strong>${stage.name}</strong><b>${items.length}</b></header><div class="kanban-cards">${items.length?items.map(p=>`<article class="kanban-card"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")}</small><small>${esc(p.person||"担当未設定")} ・ ${esc(p.date||"日程未定")}</small><div class="kanban-card-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button>${stage.key==="material"?`<div class="prep-checks material-checks"><label><input type="checkbox" data-project-progress="estimateApproved" data-id="${p.id}" ${p.estimateApproved?"checked":""}>見積承認</label></div>`:""}${stage.key==="wip"?`<div class="prep-checks"><label><input type="checkbox" data-prep="docs" data-id="${p.id}" ${p.prepDocs?"checked":""}>申請書類</label><label><input type="checkbox" data-prep="date" data-id="${p.id}" ${p.prepDate?"checked":""}>日程調整</label><button class="text-btn" data-stage-project="${p.id}" data-stage="goods" ${p.prepDocs&&p.prepDate?"":"disabled"}>準備完了 →</button></div>`:""}${stage.key==="goods"?`<div class="goods-checks"><label><input type="checkbox" data-goods-check="workCompleted" data-id="${p.id}" ${p.workCompleted?"checked":""}>作業完了</label><label><input type="checkbox" data-goods-check="salesProcessed" data-id="${p.id}" ${p.salesProcessed?"checked":""}>売上処理</label><label><input type="checkbox" data-goods-check="cleared" data-id="${p.id}" ${p.cleared?"checked":""}>消し込み</label></div>`:""}</div></article>`).join(""):`<div class="kanban-empty">案件なし</div>`}</div></section>`}).join("")}</div>`}`;
 }
 function yenShort(n){return Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function stracSvg(pq,vq,mq,f,g){
@@ -276,6 +277,14 @@ function stracSvg(pq,vq,mq,f,g){
  return parts.join('');
 }
 function getAnnualFixedCost(year){return Number(db.annualFixedCostByYear?.[String(year)]||0)}
+function pvmqSvg(p,v,m,q){
+ const f=n=>Number(n||0).toFixed(1);
+ return `<svg class="pvmq-svg" viewBox="0 0 520 250" role="img" aria-label="P V M Q関係図">
+ <rect x="8" y="8" width="150" height="234" fill="#b6c9e8" stroke="#858585" stroke-width="3"/><text x="83" y="55" text-anchor="middle" font-size="25">単価 P</text><text x="83" y="112" text-anchor="middle" font-size="29">${f(p)}</text>
+ <rect x="158" y="8" width="150" height="117" fill="#d8d8d8" stroke="#858585" stroke-width="3"/><text x="233" y="48" text-anchor="middle" font-size="23">変動費 V</text><text x="233" y="91" text-anchor="middle" font-size="27">${f(v)}</text>
+ <rect x="158" y="125" width="150" height="117" fill="#c4dfb5" stroke="#858585" stroke-width="3"/><text x="233" y="169" text-anchor="middle" font-size="23">粗利 M</text><text x="233" y="211" text-anchor="middle" font-size="27">${f(m)}</text>
+ <text x="350" y="137" text-anchor="middle" font-size="35">×</text><rect x="392" y="8" width="120" height="234" fill="#d8d8d8" stroke="#858585" stroke-width="3"/><text x="452" y="92" text-anchor="middle" font-size="27">数量 Q</text><text x="452" y="145" text-anchor="middle" font-size="30">${Number(q)||0}</text></svg>`;
+}
 function analyticsPage(){
  const month=selectedFinanceMonth;
  const year=month.slice(0,4);
@@ -289,7 +298,7 @@ function analyticsPage(){
  const q=booked.length, unitP=q?pq/q:0, unitV=q?vq/q:0, unitM=q?mq/q:0;
  return `<h1 class="page-title">STRAC</h1>
  <div class="strac-toolbar"><input id="financeMonth" type="month" value="${esc(month)}" aria-label="対象月"><span class="strac-count">${booked.length}件</span></div>
- <div class="strac-figure">${stracSvg(pq,vq,mq,f,g)}</div>
+ <div class="strac-layout"><div class="pvmq-figure">${pvmqSvg(unitP,unitV,unitM,q)}</div><div class="strac-figure">${stracSvg(pq,vq,mq,f,g)}</div></div>
  <div class="strac-values"><div><span>PQ</span><strong>${money(pq)}</strong></div><div><span>VQ</span><strong>${money(vq)}</strong></div><div><span>MQ</span><strong>${money(mq)}</strong></div><div><span>F</span><strong>${money(f)}</strong></div><div><span>G</span><strong class="${g<0?'negative':''}">${money(g)}</strong></div></div><div class="strac-unit-values"><div><span>P</span><strong>¥${unitP.toFixed(1)}</strong></div><div><span>V</span><strong>¥${unitV.toFixed(1)}</strong></div><div><span>M</span><strong>¥${unitM.toFixed(1)}</strong></div><div><span>Q</span><strong>${q}</strong></div></div>
  <p class="strac-foot">${booked.length}件</p>`;
 }
@@ -315,7 +324,7 @@ function employeeMasterPage(){
  const rows=(db.employees||[]).slice();
  if(currentUser&&!rows.some(e=>e.uid===currentUser.uid||e.name===currentUser.name))rows.push({id:currentUser.uid,uid:currentUser.uid,name:currentUser.name,role:currentUser.role,active:true,sort:999});
  rows.sort((a,b)=>(Number(a.sort)||999)-(Number(b.sort)||999));
- return `<h1 class="page-title">社員マスター</h1><p class="page-subtitle">登録した社員をスケジュールのガントチャートに表示します。在籍・退職の管理もここで行います。</p><div class="toolbar"><button class="small-primary" id="addEmployee">＋ 社員を登録</button></div><div class="record-list">${rows.length?rows.map(e=>`<article class="record-card"><div class="record-top"><div><div class="record-title">${esc(e.name)}</div><div class="record-meta">${esc(e.role||"役職未設定")} ・ 表示順 ${Number(e.sort)||0}</div></div><span class="status ${e.active===false?"wait":"done"}">${e.active===false?"退職・非表示":"在籍"}</span></div><div class="record-actions"><button class="text-btn" data-edit-employee="${esc(e.id)}">編集</button></div></article>`).join(""):`<div class="empty-state">社員が登録されていません</div>`}</div><p class="settings-note">退職にした社員はガントチャートの通常表示・予定追加候補から外れます。過去の予定や勤怠履歴は削除しません。</p>`;
+ return `<h1 class="page-title">社員マスター</h1><p class="page-subtitle">登録した社員をスケジュールのガントチャートに表示します。在籍・退職の管理もここで行います。</p><div class="toolbar"><button class="small-primary" id="addEmployee">＋ 社員を登録</button></div><div class="record-list">${rows.length?rows.map(e=>`<article class="record-card"><div class="record-top"><div><div class="record-title">${esc(e.name)}</div><div class="record-meta">${esc(e.department||"部署未設定")} ・ ${esc(e.phone||"電話番号未登録")} ・ 表示順 ${Number(e.sort)||0}</div></div><span class="status ${e.active===false?"wait":"done"}">${e.active===false?"退職・非表示":"在籍"}</span></div><div class="record-actions"><button class="text-btn" data-edit-employee="${esc(e.id)}">編集</button></div></article>`).join(""):`<div class="empty-state">社員が登録されていません</div>`}</div><p class="settings-note">退職にした社員はガントチャートの通常表示・予定追加候補から外れます。過去の予定や勤怠履歴は削除しません。</p>`;
 }
 function customersPage(){
  const filtered=db.customers.filter(c=>[c.name,c.person,c.address,c.tel].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
@@ -343,7 +352,7 @@ function scheduleColor(s){
 function schedulePage(){
  const activeEmployees=getActiveEmployees();
  const people=["全体",...activeEmployees.map(e=>e.name)];
- const staff=showAllStaff?people:["全体",...activeEmployees.filter(e=>e.role!=="事務担当").map(e=>e.name)];
+ const staff=showAllStaff?people:["全体",...activeEmployees.filter(e=>e.department==="工事部").map(e=>e.name)];
  const dayItems=db.schedules.filter(s=>s.date===selectedScheduleDate).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
  const monthStart=new Date(selectedScheduleMonth+"-01T00:00:00");const first=monthStart.getDay();const days=new Date(monthStart.getFullYear(),monthStart.getMonth()+1,0).getDate();
  const monthCells=Array.from({length:Math.ceil((first+days)/7)*7},(_,i)=>{const d=i-first+1;return d>0&&d<=days?d:null});
@@ -482,7 +491,7 @@ function deleteAttendance(id){
 }
 function projectDetailPage(){
  const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
- const progress=[['estimateApproved','見積承認'],['prepDocs','申請書類'],['prepDate','日程調整'],['workCompleted','作業完了'],['salesProcessed','売上処理']];
+ const progress=[['estimateApproved','見積承認'],['prepDocs','申請書類'],['prepDate','日程調整'],['workCompleted','作業完了'],['salesProcessed','売上処理'],['cleared','消し込み']];
  const progressHTML=progress.map(([key,label])=>`<label class="project-progress-item"><input type="checkbox" data-project-progress="${key}" data-id="${p.id}" ${p[key]?'checked':''} ${key==='salesProcessed'&&!p.workCompleted?'disabled':''}><span>${label}</span></label>`).join('');
  const docs=[['見積作成','estimate'],['報告書作成','report'],['請求書作成','invoice'],['納品書作成','delivery'],['発注書作成','purchase']];
  return `<h1 class="page-title">案件詳細</h1><p class="page-subtitle">案件情報を確認します</p><div class="detail-card"><div class="record-top"><strong>${esc(p.name)}</strong><span class="status">${esc(p.status)}</span></div>${detailRow("顧客",p.customer)}${detailRow("現場",p.site)}${detailRow("案件種別",p.type)}${detailRow("作業予定日",p.date)}${detailRow("担当者",p.person)}${detailRow("見積・受注金額",money(p.amount))}${detailRow("売上計上月",p.salesMonth||"")}${detailRow("PQ",money(p.pq||0))}${detailRow("VQ",money(p.vq||0))}<section class="project-progress"><h3>進捗状況</h3><div class="project-progress-list">${progressHTML}</div><p class="project-progress-note">作業未完了に戻すと、申請書類・日程調整も未完了になり、案件は自動的に仕掛品へ戻ります。</p></section>${detailRow("備考",p.notes)}<div class="detail-row"><span>関連スケジュール</span><strong>${db.schedules.filter(x=>x.projectId===p.id).length}件</strong></div>${db.schedules.filter(x=>x.projectId===p.id).map(x=>`<div class="related-schedule">${esc(x.date)}　${x.allDay?"終日":esc(formatTimeDisplay(x.time))}　${esc(x.title)}</div>`).join("")}</div><section class="project-documents"><h3>帳票作成</h3><div class="project-doc-buttons">${docs.map(([label,type])=>`<button class="secondary-btn" data-project-doc="${type}">${label}</button>`).join("")}</div></section><div class="toolbar"><button class="secondary-btn" data-go="projects" style="flex:1">一覧へ戻る</button>${canEdit()?`<button class="primary-btn" id="editCurrentProject" style="flex:1">編集する</button><button class="secondary-btn" id="deleteCurrentProject">削除</button>`:""}</div>`;
@@ -541,8 +550,8 @@ function updateProjectProgress(id,key,checked,returnPage='projectDetail'){
  if(key==='estimateApproved'){if(checked){p.workflowStage='wip';}else{p.estimateApproved=false;p.prepDocs=false;p.prepDate=false;p.workCompleted=false;p.salesProcessed=false;p.workflowStage='material';saveDB();render(returnPage);toast('見積承認を解除し、材料へ戻しました');return;}}
  if(key==='workCompleted'&&!checked){p.prepDocs=false;p.prepDate=false;p.salesProcessed=false;p.workflowStage='wip';saveDB();render(returnPage);toast('作業未完了に戻し、仕掛品へ戻しました');return;}
  if(key==='salesProcessed'&&checked&&!p.workCompleted){p.salesProcessed=false;toast('作業完了後に売上処理をチェックしてください');}
- if(key==='salesProcessed'&&checked&&p.workCompleted)p.workflowStage='archived';
- if(key==='salesProcessed'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
+ if(key==='cleared'&&checked&&!p.salesProcessed){p.cleared=false;toast('売上処理後に消し込みできます');return;}\n if(key==='cleared'&&checked&&p.salesProcessed&&p.workCompleted)p.workflowStage='archived';
+ if(key==='salesProcessed'&&!checked){p.cleared=false;if(p.workflowStage==='archived')p.workflowStage='goods';}\n if(key==='cleared'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
  if(['prepDocs','prepDate'].includes(key)&&!checked&&p.workflowStage==='goods')p.workflowStage='wip';
  saveDB();render(returnPage);toast('進捗状況を更新しました');
 }
@@ -599,11 +608,12 @@ function openEmployeeForm(id){
  const e=(db.employees||[]).find(x=>String(x.id)===String(id));
  openDialog(e?"社員情報を編集":"社員を新規登録",[
   {key:"name",label:"社員名",required:true},
-  {key:"role",label:"役割",type:"select",options:["管理者","管理職","事務担当","現場担当"],default:"現場担当"},
+  {key:"department",label:"部署",type:"select",options:["役員","営業部","工事部","経理部"],default:"工事部"},
+  {key:"phone",label:"電話番号",type:"tel",placeholder:"090-0000-0000"},
   {key:"active",label:"在籍状態",type:"select",options:["在籍","退職・非表示"],default:"在籍"},
   {key:"sort",label:"ガントチャート表示順",type:"number",default:(db.employees||[]).length+1}
  ],e?{...e,active:e.active===false?"退職・非表示":"在籍"}:null,data=>{
-  const item={id:e?.id||`emp-${Date.now()}`,name:data.name.trim(),role:data.role,active:data.active==="在籍",sort:Number(data.sort)||999,uid:e?.uid||null};
+  const item={id:e?.id||`emp-${Date.now()}`,name:data.name.trim(),department:data.department,phone:(data.phone||"").trim(),role:e?.role||"社員",active:data.active==="在籍",sort:Number(data.sort)||999,uid:e?.uid||null};
   if(!item.name){toast("社員名を入力してください");return}
   if((db.employees||[]).some(x=>x.id!==item.id&&x.name===item.name)){toast("同じ名前の社員が登録されています");return}
   db.employees=db.employees||[];if(e)db.employees=db.employees.map(x=>x.id===e.id?item:x);else db.employees.push(item);
