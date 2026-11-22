@@ -45,7 +45,9 @@ const initialData = {
     {id:3,date:"2026-11-21",time:"10:00",title:"定期点検",site:"神戸市東灘区",person:"山田 太郎",project:"神戸市 冷凍機定期点検"}
   ],
   financeByMonth:{},
-  annualFixedCostByYear:{}
+  annualFixedCostByYear:{},
+  attendance:[],
+  leaveBalances:{}
 };
 let db = loadDB();
 let currentUser = null;
@@ -60,12 +62,13 @@ let scheduleView = "gantt";
 let selectedScheduleDate = new Date().toLocaleDateString("sv-SE");
 let selectedScheduleMonth = selectedScheduleDate.slice(0,7);
 let showAllStaff = false;
+let attendanceMonth = new Date().toISOString().slice(0,7);
 
 function loadDB(){
  try{
   const stored=JSON.parse(localStorage.getItem(STORAGE_KEY));
   if(!stored)return structuredClone(initialData);
-  return {...structuredClone(initialData),...stored,financeByMonth:stored.financeByMonth||{},annualFixedCostByYear:stored.annualFixedCostByYear||{}};
+  return {...structuredClone(initialData),...stored,financeByMonth:stored.financeByMonth||{},annualFixedCostByYear:stored.annualFixedCostByYear||{},attendance:stored.attendance||[],leaveBalances:stored.leaveBalances||{}};
  }catch{return JSON.parse(JSON.stringify(initialData))}
 }
 function saveDB(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
@@ -165,7 +168,7 @@ function navActive(page){$$(".nav-item").forEach(b=>b.classList.toggle("active",
 function render(page){
   currentPage=page;searchTerm="";navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail"].includes(page));
   const content=$("#content");
-  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,customers:customersPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
+  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,attendance:attendancePage,customers:customersPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage};
   if(pages[page])content.innerHTML=pages[page]();
   else content.innerHTML=comingSoonPage(page);
   bindPageEvents();
@@ -284,12 +287,14 @@ function analyticsPage(){
 function settingsPage(){
  const year=selectedFinanceMonth.slice(0,4);
  const annualF=getAnnualFixedCost(year);
- return `<h1 class="page-title">設定</h1><p class="page-subtitle">年間固定費の設定</p>
+ const leave=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};
+ return `<h1 class="page-title">設定</h1><p class="page-subtitle">年間固定費・休暇残日数の設定</p>
  <section class="settings-card"><div class="settings-year-row"><strong>対象年度</strong><input id="settingsYear" type="number" min="2020" max="2100" step="1" value="${esc(year)}" aria-label="設定対象年">年</div>
  <label class="settings-field" for="annualFixedCostInput">年間固定費（円）<input id="annualFixedCostInput" type="number" min="0" step="1" inputmode="numeric" value="${annualF}"></label>
  <div class="settings-preview"><span>月額 F</span><strong>${money(annualF/12)}</strong></div>
  <button class="primary-btn full" id="saveAnnualFixedCost">保存する</button></section>
- <p class="settings-note">設定した年間固定費を12で割り、該当年の各月のSTRACに適用します。</p>`;
+ <p class="settings-note">設定した年間固定費を12で割り、該当年の各月のSTRACに適用します。</p>
+ <section class="settings-card"><h2>休暇残日数（${esc(currentUser.name)}）</h2><label class="settings-field">有給残日数<input id="paidLeaveBalance" type="number" min="0" step="0.5" value="${Number(leave.paid||0)}"></label><label class="settings-field">代休残日数<input id="compLeaveBalance" type="number" min="0" step="0.5" value="${Number(leave.comp||0)}"></label><button class="primary-btn full" id="saveLeaveBalance">休暇残日数を保存</button></section>`;
 }
 function customersPage(){
  const filtered=db.customers.filter(c=>[c.name,c.person,c.address,c.tel].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
@@ -328,7 +333,7 @@ function schedulePage(){
  const ticks=[timelineStart/60];for(let h=Math.ceil(timelineStart/120)*2;h<timelineEnd/60;h+=2)if(!ticks.includes(h))ticks.push(h);if(!ticks.includes(timelineEnd/60))ticks.push(timelineEnd/60);
  const position=mins=>(mins-timelineStart)/total*100;
  const gantt=`<div class="gantt-wrap"><div class="gantt-inner" style="--gantt-hours:${total/60}"><div class="gantt-head"><div class="gantt-name">社員</div><div class="gantt-track">${ticks.map(h=>`<span style="left:${position(h*60)}%">${String(h).padStart(2,"0")}:00</span>`).join("")}</div></div>${staff.map(name=>{
-   const mine=dayItems.filter(s=>s.person===name);const active=(db.staffAvailability||{})[name]??(name===currentUser.name||name==="全体");
+   const mine=dayItems.filter(s=>s.person===name);const active=name==="全体"?false:isEmployeeWorking(name);
    const timedMine=mine.filter(s=>!s.allDay),lanes=[];
    timedMine.forEach(s=>{const a=timeToMinutes(s.time);let b=timeToMinutes(s.endTime||s.time);if(b<=a)b+=1440;let lane=0;while(lanes[lane]?.some(x=>a<x.end&&b>x.start))lane++;(lanes[lane]??=[]).push({start:a,end:b,s});s._lane=lane;});
    const laneCount=Math.max(1,lanes.length)+(mine.some(s=>s.allDay)?1:0);
@@ -344,6 +349,74 @@ function schedulePage(){
  <div class="schedule-date-control"><button id="prevDay">‹</button><input type="date" id="scheduleDate" value="${selectedScheduleDate}"><button id="nextDay">›</button><label><input type="checkbox" id="showAllStaff" ${showAllStaff?"checked":""}>全社員</label></div>
  ${scheduleView==="day"?`<div class="schedule-day">${selectedScheduleDate.replaceAll("-"," / ")}</div>${dayEvents}`:scheduleView==="gantt"?`<div class="gantt-legend"><span><i class="legend-working"></i>勤務中</span><span><i class="legend-away"></i>それ以外</span><small>表示 ${String(Math.floor(timelineStart/60)).padStart(2,"0")}:00〜${String(Math.floor(timelineEnd/60)).padStart(2,"0")}:00</small></div><div class="schedule-color-legend"><span>赤 全体</span><span>緑 研修</span><span>青 日中作業</span><span>黄 閉店後作業</span></div>${gantt}`:calendar}`;
 }
+function employeeAttendance(){
+ return (db.attendance||[]).filter(x=>x.uid===currentUser.uid).sort((a,b)=>(b.workDate||"").localeCompare(a.workDate||""));
+}
+function isEmployeeWorking(name){
+ if(!currentUser||name!==currentUser.name)return false;
+ return (db.attendance||[]).some(x=>x.uid===currentUser.uid&&x.workDate===selectedScheduleDate&&x.type==="work"&&x.clockIn&&!x.clockOut);
+}
+function attendancePage(){
+ const records=employeeAttendance();
+ const open=records.find(x=>x.type==="work"&&x.clockIn&&!x.clockOut);
+ const balances=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};
+ const monthRecords=records.filter(x=>(x.workDate||"").startsWith(attendanceMonth));
+ const history=monthRecords.map(r=>{
+   const start=r.clockIn?new Date(r.clockIn):null, end=r.clockOut?new Date(r.clockOut):null;
+   const timeLabel=t=>{if(!t)return "—";const d=new Date(t);let h=d.getHours();if(r.workDate&&d.toLocaleDateString("sv-SE")!==r.workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
+   const typeLabel=r.type==="work"?"勤務":r.type==="paid"?"有給":"代休";
+   return `<article class="attendance-record"><div><strong>${esc(r.workDate)}　${typeLabel}</strong><small>${r.type==="work"?`出勤 ${timeLabel(r.clockIn)}　／　退勤 ${timeLabel(r.clockOut)}`:"休暇として登録"}</small>${r.note?`<small>${esc(r.note)}</small>`:""}</div><button class="text-btn" data-edit-attendance="${r.id}">訂正</button></article>`;
+ }).join("");
+ return `<h1 class="page-title">勤怠管理</h1><p class="page-subtitle">本人の出退勤・休暇を記録します</p>
+ <section class="attendance-status"><div class="attendance-status-top"><span>現在の状態</span><strong class="${open?"working":"not-working"}">${open?"勤務中":"退勤中"}</strong></div><div class="attendance-identity">${esc(currentUser.name)}　／　${esc(currentUser.email)}</div><div class="attendance-actions">${open?`<button class="primary-btn" id="clockOutButton">退勤する</button>`:`<button class="primary-btn" id="clockInButton">出勤する</button>`}</div>${open?`<small class="attendance-hint">出勤時刻：${new Date(open.clockIn).toLocaleString("ja-JP")}</small>`:""}</section>
+ <section class="attendance-balance"><div><span>有給残日数</span><strong>${Number(balances.paid||0)}日</strong></div><div><span>代休残日数</span><strong>${Number(balances.comp||0)}日</strong></div></section>
+ <div class="attendance-actions attendance-leave-actions"><button class="secondary-btn" id="addPaidLeave">＋ 有給を登録</button><button class="secondary-btn" id="addCompLeave">＋ 代休を登録</button></div>
+ <div class="section-heading"><h2>勤怠履歴</h2><input type="month" id="attendanceMonth" value="${attendanceMonth}" aria-label="対象月"></div>
+ <div class="attendance-history">${history||`<div class="empty-state">この月の勤怠記録はありません</div>`}</div>
+ <p class="settings-note">この版の勤怠記録は、現在ログイン中の端末のブラウザ内に保存されます。社員間・端末間の共有はまだ行われません。</p>`;
+}
+function punchAttendance(kind){
+ const now=new Date(),stamp=now.toISOString(),today=now.toLocaleDateString("sv-SE");
+ if(kind==="in"){
+   if(employeeAttendance().some(x=>x.type==="work"&&x.clockIn&&!x.clockOut)){toast("すでに勤務中です");return}
+   db.attendance.push({id:Date.now(),uid:currentUser.uid,employeeName:currentUser.name,type:"work",workDate:today,clockIn:stamp,clockOut:null,createdAt:stamp,updatedAt:stamp,audit:[]});
+ }else{
+   const open=employeeAttendance().find(x=>x.type==="work"&&x.clockIn&&!x.clockOut);
+   if(!open){toast("出勤記録がありません");return}
+   open.clockOut=stamp;open.updatedAt=stamp;
+ }
+ saveDB();render("attendance");
+}
+function addLeave(type){
+ openDialog(type==="paid"?"有給を登録":"代休を登録",[
+  {key:"workDate",label:"取得日",type:"date",required:true,default:localToday()},
+  {key:"note",label:"備考"}
+ ],null,data=>{
+   const stamp=new Date().toISOString(),balance=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};
+   const key=type==="paid"?"paid":"comp";
+   if(Number(balance[key]||0)<=0){toast(type==="paid"?"有給残日数がありません":"代休残日数がありません");return}
+   db.attendance.push({id:Date.now(),uid:currentUser.uid,employeeName:currentUser.name,type,workDate:data.workDate,clockIn:null,clockOut:null,note:data.note||"",createdAt:stamp,updatedAt:stamp,audit:[]});
+   balance[key]=Number(balance[key])-1;db.leaveBalances[currentUser.uid]=balance;saveDB();$("#formDialog").close();render("attendance");toast("休暇を登録しました");
+ });
+}
+function editAttendance(id){
+ const r=db.attendance.find(x=>x.id===Number(id)&&x.uid===currentUser.uid);if(!r)return;
+ const datePart=t=>t?new Date(t).toLocaleDateString("sv-SE"):"";
+ const timePart=t=>{if(!t)return "";const d=new Date(t);let h=d.getHours();if(d.toLocaleDateString("sv-SE")!==r.workDate)h+=24;return `${String(h).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}`};
+ openDialog("勤怠記録を訂正",[
+  {key:"workDate",label:"勤務日・取得日",type:"date",required:true},
+  ...(r.type==="work"?[{key:"inTime",label:"出勤時刻（4桁）"},{key:"outTime",label:"退勤時刻（4桁・未退勤は空欄）"}]:[]),
+  {key:"note",label:"備考"}
+ ],{workDate:r.workDate,inTime:timePart(r.clockIn),outTime:timePart(r.clockOut),note:r.note||""},data=>{
+   const before={workDate:r.workDate,clockIn:r.clockIn,clockOut:r.clockOut,note:r.note||""};
+   const parse=(d,t)=>{if(!t)return null;const v=String(t).replace(/\D/g,"");if(v.length!==4||Number(v.slice(0,2))>36||Number(v.slice(2))>59)return undefined;const h=Number(v.slice(0,2)),m=Number(v.slice(2));const base=new Date(`${d}T00:00:00`);base.setMinutes(h*60+m);return base.toISOString()};
+   const ci=r.type==="work"?parse(data.workDate,data.inTime):null,co=r.type==="work"?parse(data.workDate,data.outTime):null;
+   if(r.type==="work"&&(ci===undefined||co===undefined)){toast("時刻は4桁で入力してください");return}
+   if(ci&&co&&new Date(co)<=new Date(ci)){toast("退勤時刻は出勤時刻より後にしてください");return}
+   r.audit=r.audit||[];r.audit.push({at:new Date().toISOString(),by:currentUser.uid,before});r.workDate=data.workDate;if(r.type==="work"){r.clockIn=ci;r.clockOut=co}r.note=data.note||"";r.updatedAt=new Date().toISOString();saveDB();$("#formDialog").close();render("attendance");toast("訂正内容を保存しました。変更前の記録も保持しています");
+ });
+}
+
 function projectDetailPage(){
  const p=db.projects.find(x=>x.id===Number(window.selectedId));if(!p)return projectsPage();
  return `<h1 class="page-title">案件詳細</h1><p class="page-subtitle">案件情報を確認します</p><div class="detail-card"><div class="record-top"><strong>${esc(p.name)}</strong><span class="status">${esc(p.status)}</span></div>${detailRow("顧客",p.customer)}${detailRow("現場",p.site)}${detailRow("案件種別",p.type)}${detailRow("作業予定日",p.date)}${detailRow("担当者",p.person)}${detailRow("見積・受注金額",money(p.amount))}${detailRow("売上計上月",p.salesMonth||"")}${detailRow("PQ",money(p.pq||0))}${detailRow("VQ",money(p.vq||0))}${detailRow("売上処理",p.salesProcessed?"処理済":"未処理")}${detailRow("備考",p.notes)}<div class="detail-row"><span>関連スケジュール</span><strong>${db.schedules.filter(x=>x.projectId===p.id).length}件</strong></div>${db.schedules.filter(x=>x.projectId===p.id).map(x=>`<div class="related-schedule">${esc(x.date)}　${x.allDay?"終日":esc(formatTimeDisplay(x.time))}　${esc(x.title)}</div>`).join("")}</div><div class="toolbar"><button class="secondary-btn" data-go="projects" style="flex:1">一覧へ戻る</button>${canEdit()?`<button class="primary-btn" id="editCurrentProject" style="flex:1">編集する</button><button class="secondary-btn" id="deleteCurrentProject">削除</button>`:""}</div>`;
@@ -355,6 +428,13 @@ function customerDetailPage(){
 function detailRow(k,v){return `<div class="detail-row"><span>${k}</span><strong>${esc(v??"")}</strong></div>`}
 function comingSoonPage(key){const item=menuItems.find(x=>x[0]===key);return `<h1 class="page-title">${item?.[1]||"機能"}</h1><p class="page-subtitle">${item?.[2]||""}</p><div class="empty-state"><div style="font-size:28px;margin-bottom:8px;color:var(--green)">✧</div>この機能は次の開発段階で実装します。<br>メニュー構成と画面デザインは準備済みです。<br><button class="secondary-btn" data-go="menu" style="margin-top:16px">メニューに戻る</button></div>`}
 function bindPageEvents(){
+ $("#clockInButton")?.addEventListener("click",()=>punchAttendance("in"));
+ $("#clockOutButton")?.addEventListener("click",()=>punchAttendance("out"));
+ $("#addPaidLeave")?.addEventListener("click",()=>addLeave("paid"));
+ $("#addCompLeave")?.addEventListener("click",()=>addLeave("comp"));
+ $("#attendanceMonth")?.addEventListener("change",e=>{attendanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("attendance")});
+ $$('[data-edit-attendance]').forEach(b=>b.addEventListener('click',()=>editAttendance(b.dataset.editAttendance)));
+
  $$("[data-go]").forEach(b=>b.addEventListener("click",()=>render(b.dataset.go)));
  $("#logoutButton")?.addEventListener("click",async()=>{await signOut(auth);currentUser=null;showLogin()});
  $("#addProject")?.addEventListener("click",()=>openProjectForm());
@@ -374,6 +454,7 @@ function bindPageEvents(){
  $$('[data-complete-project]').forEach(b=>b.addEventListener('click',()=>{const p=db.projects.find(x=>x.id===Number(b.dataset.completeProject));if(!p)return;if(!confirm('作業完了・売上処理済みにして案件ボードから除外しますか？'))return;p.workCompleted=true;p.salesProcessed=true;p.workflowStage='archived';saveDB();render('projects');toast('売上処理済みとして保存しました')}));
  $("#financeMonth")?.addEventListener("change",e=>{selectedFinanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("analytics")});
  $("#settingsYear")?.addEventListener("change",e=>{const y=String(e.target.value||new Date().getFullYear()).slice(0,4);selectedFinanceMonth=`${y}-01`;render("settings")});
+ $("#saveLeaveBalance")?.addEventListener("click",()=>{const paid=Number($("#paidLeaveBalance").value),comp=Number($("#compLeaveBalance").value);if(paid<0||comp<0||!Number.isFinite(paid)||!Number.isFinite(comp)){toast("残日数を正しく入力してください");return}db.leaveBalances[currentUser.uid]={paid,comp};saveDB();toast("休暇残日数を保存しました")});
  $("#saveAnnualFixedCost")?.addEventListener("click",()=>{const value=Number($("#annualFixedCostInput").value||0);if(value<0||!Number.isFinite(value)){toast("年間固定費を正しく入力してください");return}const year=selectedFinanceMonth.slice(0,4);db.annualFixedCostByYear=db.annualFixedCostByYear||{};db.annualFixedCostByYear[year]=value;saveDB();toast(`${year}年の年間固定費を保存しました`);render("settings")});
  $("#searchBox")?.addEventListener("input",e=>{searchTerm=e.target.value;const y=window.scrollY;render(currentPage);const input=$("#searchBox");input.focus();input.setSelectionRange(input.value.length,input.value.length);window.scrollTo(0,y)});
  $$("[data-filter]").forEach(b=>b.addEventListener("click",()=>{projectFilter=b.dataset.filter;render("projects")}));
