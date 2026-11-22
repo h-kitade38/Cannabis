@@ -22,7 +22,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.5";
+const APP_VERSION = "v1.5.1";
 const employees = {
   admin:{name:"管理者",role:"管理者",pin:"1234"},
   manager:{name:"山田 太郎",role:"管理職",pin:"2222"},
