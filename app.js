@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/fireba
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, onSnapshot, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBx84q5_wWuZWYvaWVCCzycOc1562sczeY",
@@ -22,7 +22,16 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.5.1";
+const APP_VERSION = "v1.6.0";
+const IS_TV_MODE = new URLSearchParams(location.search).get("tv") === "1";
+const SHARED_DATA_REF = doc(firestore,"appData","shared");
+let unsubscribeSharedData = null;
+let cloudSyncReady = false;
+let cloudWriteTimer = null;
+let applyingCloudSnapshot = false;
+let tvClockTimer = null;
+let tvLastDate = "";
+let tvLastWorkDate = "";
 const employees = {
   admin:{name:"管理者",role:"管理者",pin:"1234"},
   manager:{name:"山田 太郎",role:"管理職",pin:"2222"},
@@ -77,7 +86,73 @@ function loadDB(){
   return {...structuredClone(initialData),...stored,employees:stored.employees||structuredClone(initialData.employees),financeByMonth:stored.financeByMonth||{},annualFixedCostByYear:stored.annualFixedCostByYear||{},attendance:stored.attendance||[],leaveBalances:stored.leaveBalances||{}};
  }catch{return JSON.parse(JSON.stringify(initialData))}
 }
-function saveDB(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
+function saveDB(){
+  const serialized=JSON.stringify(db);
+  localStorage.setItem(STORAGE_KEY,serialized);
+  if(!cloudSyncReady || applyingCloudSnapshot) return;
+  clearTimeout(cloudWriteTimer);
+  cloudWriteTimer=setTimeout(async()=>{
+    try{
+      await setDoc(SHARED_DATA_REF,{data:db,updatedAt:Date.now(),updatedBy:currentUser?.uid||null});
+      setSyncStatus("同期済み");
+    }catch(error){
+      console.error("Firestore save failed",error);
+      setSyncStatus("同期エラー");
+      toast("Firebaseへの保存に失敗しました。通信・Firestoreルールを確認してください。");
+    }
+  },450);
+}
+function setSyncStatus(label){
+  $$("#syncStatus").forEach(el=>el.textContent=label);
+}
+async function startSharedDataSync(){
+  cloudSyncReady=false;
+  setSyncStatus("Firebase接続中…");
+  try{
+    await runTransaction(firestore,async transaction=>{
+      const snap=await transaction.get(SHARED_DATA_REF);
+      if(!snap.exists()){
+        let seed=structuredClone(initialData);
+        try{
+          const local=JSON.parse(localStorage.getItem(STORAGE_KEY)||"null");
+          if(local && typeof local==="object") seed={...seed,...local};
+        }catch{}
+        transaction.set(SHARED_DATA_REF,{data:seed,updatedAt:Date.now(),updatedBy:currentUser?.uid||null});
+      }
+    });
+    if(unsubscribeSharedData) unsubscribeSharedData();
+    unsubscribeSharedData=onSnapshot(SHARED_DATA_REF,snap=>{
+      if(!snap.exists()) return;
+      const remote=snap.data()?.data;
+      if(!remote || typeof remote!=="object") return;
+      applyingCloudSnapshot=true;
+      db={...structuredClone(initialData),...remote,
+        employees:remote.employees||structuredClone(initialData.employees),
+        projects:remote.projects||[],customers:remote.customers||[],schedules:remote.schedules||[],
+        financeByMonth:remote.financeByMonth||{},annualFixedCostByYear:remote.annualFixedCostByYear||{},
+        attendance:remote.attendance||[],leaveBalances:remote.leaveBalances||{}};
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
+      cloudSyncReady=true;
+      applyingCloudSnapshot=false;
+      setSyncStatus("Firebase同期済み");
+      if(currentPage==="tv" || IS_TV_MODE) render("tv");
+      else if(currentUser) render(currentPage);
+    },error=>{
+      console.error("Firestore listener failed",error);
+      cloudSyncReady=false;
+      applyingCloudSnapshot=false;
+      setSyncStatus("同期エラー");
+      toast("Firebaseのデータを受信できません。Firestoreルールを確認してください。");
+    });
+    return true;
+  }catch(error){
+    console.error("Firestore initialization failed",error);
+    cloudSyncReady=false;
+    setSyncStatus("接続エラー");
+    showLogin("Firebaseの共有データを初期化できませんでした。Firestore設定を確認してください。");
+    return false;
+  }
+}
 function money(n){return "¥"+Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2100)}
@@ -90,10 +165,12 @@ function showLogin(message=null){
   const messageEl=$("#authMessage");
   if(messageEl){messageEl.textContent=loginNotice||"";messageEl.classList.toggle("hidden",!loginNotice);}
 }
-function showMain(){
+async function showMain(){
   $("#loginView").classList.add("hidden");
   $("#mainView").classList.remove("hidden");
-  render("dashboard");
+  const synced=await startSharedDataSync();
+  if(!synced)return;
+  render(IS_TV_MODE?"tv":"dashboard");
 }
 async function verifyEmployee(user){
   const employeeRef=doc(firestore,"employees",user.uid);
@@ -173,9 +250,9 @@ const menuItems=[
 ];
 function navActive(page){$$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.nav===page||(page==="projectDetail"&&b.dataset.nav==="projects")))}
 function render(page){
-  currentPage=page;searchTerm="";navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail","projectDocument"].includes(page));
+  currentPage=page;searchTerm="";document.body.classList.toggle("tv-mode",page==="tv");document.body.classList.toggle("desktop-app",!IS_TV_MODE);navActive(page);$("#backButton").classList.toggle("hidden",!["projectDetail","customerDetail","projectDocument"].includes(page));
   const content=$("#content");
-  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,attendance:attendancePage,customers:customersPage,employeeMaster:employeeMasterPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage,projectDocument:projectDocumentPage};
+  const pages={dashboard:dashboardPage,menu:menuPage,projects:projectsPage,schedule:schedulePage,attendance:attendancePage,customers:customersPage,employeeMaster:employeeMasterPage,analytics:analyticsPage,settings:settingsPage,projectDetail:projectDetailPage,customerDetail:customerDetailPage,projectDocument:projectDocumentPage,tv:tvSchedulePage};
   if(pages[page])content.innerHTML=pages[page]();
   else content.innerHTML=comingSoonPage(page);
   bindPageEvents();
@@ -198,6 +275,64 @@ function dashboardPage(){
   <div class="dashboard-kanban">${stages.map(stage=>{const items=activeProjects.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key);const preview=items.slice(0,2).map(p=>`<div class="dashboard-kanban-preview"><strong>${esc(p.name)}</strong><small>${esc(p.customer||p.site||"")}</small></div>`).join("");const more=items.length>2?`<div class="dashboard-kanban-more">ほか ${items.length-2} 件</div>`:"";return `<button class="dashboard-kanban-column dashboard-${stage.key}" data-go="projects"><div class="dashboard-kanban-head"><strong>${stage.name}</strong><b>${items.length}<small>件</small></b></div><div class="dashboard-kanban-list">${preview||`<div class="dashboard-kanban-none">案件なし</div>`}${more}</div></button>`}).join("")}</div>
   <div class="section-heading"><h2>会社の数字</h2><button class="text-btn" data-go="analytics">STRACを見る ›</button></div>
   <button class="dashboard-strac" data-go="analytics"><div class="dashboard-strac-values"><span>PQ ${money(pq)}</span><span>VQ ${money(vq)}</span><span>MQ ${money(mq)}</span><span>F ${money(f)}</span><strong class="${g<0?'negative':''}">G ${money(g)}</strong></div><div class="dashboard-strac-figure">${stracSvg(pq,vq,mq,f,g)}</div></button>`;
+}
+function getTvWorkDate(now){
+  const actualDate=now.toLocaleDateString("sv-SE");
+  const previous=new Date(now);previous.setDate(previous.getDate()-1);
+  const previousDate=previous.toLocaleDateString("sv-SE");
+  const nowOnPreviousDay=1440+now.getHours()*60+now.getMinutes();
+  const hasOngoingOvernight=db.schedules.some(s=>{
+    if(s.date!==previousDate||s.allDay)return false;
+    const start=timeToMinutes(s.time);let end=timeToMinutes(s.endTime||s.time);
+    if(end<=start)end+=1440;
+    return end>1440 && end>=nowOnPreviousDay;
+  });
+  return hasOngoingOvernight?previousDate:actualDate;
+}
+function tvSchedulePage(){
+  const now=new Date();
+  const today=now.toLocaleDateString("sv-SE");
+  const workDate=getTvWorkDate(now);
+  const staff=["全体",...getActiveEmployees().map(e=>e.name)];
+  const dayItems=db.schedules.filter(s=>s.date===workDate).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+  const start=0,end=30*60,total=end-start;
+  const ticks=Array.from({length:16},(_,i)=>i*2);
+  const pos=m=>Math.max(0,Math.min(100,(m-start)/total*100));
+  const nowMinutes=now.getHours()*60+now.getMinutes()+(workDate!==today?1440:0);
+  const currentLine=pos(nowMinutes);
+  const rows=staff.map(name=>{
+    const mine=dayItems.filter(s=>s.person===name);
+    const lanes=[];
+    mine.filter(s=>!s.allDay).forEach(s=>{
+      const a=timeToMinutes(s.time);let b=timeToMinutes(s.endTime||s.time);if(b<=a)b+=1440;
+      let lane=0;while(lanes[lane]?.some(x=>a<x.end&&b>x.start))lane++;
+      (lanes[lane]??=[]).push({start:a,end:b,s});s._tvLane=lane;
+    });
+    const bars=mine.map(s=>{
+      const a=s.allDay?9*60:timeToMinutes(s.time);
+      let b=s.allDay?18*60:timeToMinutes(s.endTime||s.time);if(!s.allDay&&b<=a)b+=1440;
+      const left=pos(a),right=pos(b);
+      if(right<=left)return "";
+      return `<div class="tv-gantt-bar" style="left:${left}%;width:${right-left}%;top:${8+((s._tvLane||0)*43)}px;background:${scheduleColor(s)}"><strong>${esc(s.title)}</strong><span>${esc(s.project||"")}</span><small>${esc(formatTimeDisplay(a))}–${esc(formatTimeDisplay(b))}</small></div>`;
+    }).join("");
+    return `<div class="tv-gantt-row" style="min-height:${Math.max(76,lanes.length*43+22)}px"><div class="tv-employee">${esc(name)}</div><div class="tv-track" style="min-height:${Math.max(76,lanes.length*43+22)}px">${ticks.map(h=>`<i style="left:${pos(h*60)}%"></i>`).join("")}${bars}<div class="tv-now-line" style="left:${currentLine}%"></div></div></div>`;
+  }).join("");
+  return `<div class="tv-header"><div><div class="tv-brand">CANNABIS <span>業務スケジュール</span></div><div class="tv-date" id="tvDate">${now.toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"})} <span class="tv-work-date">勤務日 ${workDate}</span></div></div><div class="tv-clock" id="tvClock">${now.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</div></div>
+  <div class="tv-board"><div class="tv-axis-head"><div>担当者</div><div class="tv-axis">${ticks.map(h=>`<span style="left:${pos(h*60)}%">${String(h).padStart(2,"0")}:00</span>`).join("")}</div></div>
+  <div class="tv-rows">${rows||`<div class="tv-empty">社員が登録されていません</div>`}</div></div>
+  <div class="tv-footer"><span>表示時間 00:00〜30:00（翌日06:00）</span><span id="syncStatus">Firebase同期中…</span><button id="tvFullscreen">全画面表示</button></div>`;
+}
+function updateTvClock(){
+  if(!document.body.classList.contains("tv-mode"))return;
+  const now=new Date(),date=now.toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"});
+  const clock=$("#tvClock"),dateEl=$("#tvDate");
+  if(clock)clock.textContent=now.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+  if(dateEl)dateEl.textContent=date;
+  const today=now.toLocaleDateString("sv-SE");
+  const workDate=getTvWorkDate(now);
+  if(today!==tvLastDate || workDate!==tvLastWorkDate){tvLastDate=today;tvLastWorkDate=workDate;render("tv");return;}
+  const pct=(now.getHours()*60+now.getMinutes()+(workDate!==today?1440:0))/(30*60)*100;
+  $$(".tv-now-line").forEach(line=>line.style.left=`${pct}%`);
 }
 function allowedMenu(key){
   if(["receivables","payments","estimates","analytics"].includes(key))return canSeeFinance();
@@ -505,6 +640,9 @@ function customerDetailPage(){
 function detailRow(k,v){return `<div class="detail-row"><span>${k}</span><strong>${esc(v??"")}</strong></div>`}
 function comingSoonPage(key){const item=menuItems.find(x=>x[0]===key);return `<h1 class="page-title">${item?.[1]||"機能"}</h1><p class="page-subtitle">${item?.[2]||""}</p><div class="empty-state"><div style="font-size:28px;margin-bottom:8px;color:var(--green)">✧</div>この機能は次の開発段階で実装します。<br>メニュー構成と画面デザインは準備済みです。<br><button class="secondary-btn" data-go="menu" style="margin-top:16px">メニューに戻る</button></div>`}
 function bindPageEvents(){
+ $("#tvFullscreen")?.addEventListener("click",()=>{if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(console.error)});
+ $("#tvModeButton")?.addEventListener("click",()=>window.open(`${location.pathname}?tv=1`,"cannabis-tv"));
+
  $("#clockInButton")?.addEventListener("click",()=>punchAttendance("in"));
  $("#clockOutButton")?.addEventListener("click",()=>punchAttendance("out"));
  $("#addPaidLeave")?.addEventListener("click",()=>addLeave("paid"));
@@ -654,3 +792,8 @@ function deleteSchedule(id){if(!confirm("この予定を削除しますか？"))
 $("#entityForm").addEventListener("submit",e=>{e.preventDefault();if(!editing)return;const data=Object.fromEntries(new FormData(e.currentTarget).entries());editing.onSave(data)});
 function closeDialog(){$("#formDialog").close();editing=null}
 $("#closeDialog").addEventListener("click",closeDialog);$("#cancelDialog").addEventListener("click",closeDialog);
+
+if(tvClockTimer)clearInterval(tvClockTimer);
+tvLastDate=new Date().toLocaleDateString("sv-SE");
+tvLastWorkDate=getTvWorkDate(new Date());
+tvClockTimer=setInterval(updateTvClock,1000);

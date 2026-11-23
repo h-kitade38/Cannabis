@@ -222,3 +222,72 @@ body{padding:0;margin:0;overscroll-behavior-y:none}
 
 /* v1.5.1 menu icon refinements: only employee, equipment and settings */
 .tile-icon svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+
+/* CANNABIS PC layout */
+.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:12px}
+.sync-status{font-size:10px;color:#c9ddd3;white-space:nowrap}
+.tv-open-button{display:none;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:700}
+@media(min-width:900px){
+  #mainView{min-height:100vh}
+  .tv-open-button{display:inline-flex}
+  .topbar{position:fixed;left:0;right:0;top:0;height:66px;min-height:66px;padding:0 28px 0 232px;z-index:10}
+  .bottom-nav{top:66px;bottom:0;left:0;right:auto;width:204px;height:auto;padding:20px 12px;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:5px;border-top:0;border-right:1px solid var(--line);background:#fff;backdrop-filter:none}
+  .nav-item{min-height:48px;width:100%;min-width:0;display:flex;flex-direction:row;justify-content:flex-start;align-items:center;gap:13px;padding:0 15px;border-radius:10px;text-align:left}
+  .nav-item span{width:24px;font-size:20px;text-align:center}
+  .nav-item small{font-size:13px}
+  .nav-item.active{background:#eaf2ed;color:var(--green)}
+  .nav-item.active span{transform:none}
+  .content{max-width:none;width:calc(100% - 204px);margin:66px 0 0 204px;padding:30px 34px 50px;min-height:calc(100vh - 66px)}
+  .page-title{font-size:25px}
+  .page-subtitle{font-size:13px}
+  .welcome-panel{padding:28px 30px}
+  .menu-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .record-list,.project-list{max-width:1200px}
+  .gantt-wrap{overflow-x:auto}
+  .gantt-inner{min-width:980px}
+  .month-calendar{max-width:1400px}
+}
+@media(min-width:1400px){
+  .content{padding-left:48px;padding-right:48px}
+  .dashboard-kanban{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Dedicated office-monitor schedule */
+body.tv-mode{background:#071b16;color:#f5faf6;overflow:hidden}
+body.tv-mode #mainView{min-height:100vh}
+body.tv-mode .topbar,body.tv-mode .bottom-nav{display:none!important}
+body.tv-mode .content{display:block;width:100%;max-width:none;height:100vh;min-height:100vh;margin:0;padding:24px 30px 18px;overflow:hidden}
+.tv-header{height:112px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.14);padding:0 10px 18px}
+.tv-brand{font-size:25px;font-weight:800;letter-spacing:.13em;color:#e9f3ed}
+.tv-brand span{font-size:15px;letter-spacing:.04em;font-weight:500;color:#9db8aa;margin-left:18px}
+.tv-date{font-size:20px;color:#b6cfc1;margin-top:8px}
+.tv-clock{font-size:58px;font-weight:800;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:#fff}
+.tv-board{height:calc(100vh - 190px);overflow:auto;margin-top:14px;--name-width:190px}
+.tv-axis-head,.tv-gantt-row{display:grid;grid-template-columns:var(--name-width) minmax(0,1fr)}
+.tv-axis-head{height:42px;position:sticky;top:0;z-index:4;background:#102b22;border-bottom:1px solid rgba(255,255,255,.18)}
+.tv-axis-head>div:first-child{display:flex;align-items:center;padding-left:16px;font-size:14px;font-weight:700;color:#d8e7df}
+.tv-axis{position:relative}
+.tv-axis span{position:absolute;top:10px;transform:translateX(-50%);font-size:12px;color:#9fb8aa;font-variant-numeric:tabular-nums}
+.tv-rows{position:relative}
+.tv-gantt-row{min-height:76px;border-bottom:1px solid rgba(255,255,255,.1)}
+.tv-employee{display:flex;align-items:center;padding:12px 16px;font-size:18px;font-weight:700;background:#10271f;border-right:1px solid rgba(255,255,255,.13)}
+.tv-track{position:relative;min-height:76px;background:repeating-linear-gradient(to right,transparent 0,transparent calc(6.6666667% - 1px),rgba(255,255,255,.11) calc(6.6666667% - 1px),rgba(255,255,255,.11) 6.6666667%)}
+.tv-track>i{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.08)}
+.tv-gantt-bar{position:absolute;height:36px;border-radius:7px;padding:4px 9px;overflow:hidden;color:#10231b;display:flex;align-items:center;gap:10px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.22)}
+.tv-gantt-bar strong{font-size:13px;overflow:hidden;text-overflow:ellipsis}
+.tv-gantt-bar span{font-size:11px;opacity:.8;overflow:hidden;text-overflow:ellipsis}
+.tv-gantt-bar small{font-size:10px;font-weight:800;margin-left:auto}
+.tv-now-line{position:absolute;top:0;bottom:0;width:2px;background:#ff665e;z-index:3;pointer-events:none;box-shadow:0 0 8px rgba(255,102,94,.75)}
+.tv-now-line:before{content:"";position:absolute;top:0;left:-5px;width:12px;height:12px;border-radius:50%;background:#ff665e}
+.tv-empty{padding:40px;text-align:center;color:#9fb8aa}
+.tv-footer{height:34px;display:flex;align-items:center;justify-content:space-between;color:#91ab9d;font-size:11px;padding:0 8px}
+.tv-footer button{background:#1d4938;color:#fff;border:1px solid #3c7059;border-radius:7px;padding:7px 12px;font-size:11px}
+body.tv-mode .sync-status{color:#9fb8aa}
+@media(max-width:899px){
+  .topbar-actions{gap:7px}
+  .sync-status{display:none}
+  .tv-open-button{display:none;font-size:10px;padding:7px 8px}
+}
+
+.tv-work-date{font-size:12px;color:#7f9e8e;margin-left:14px;letter-spacing:.03em}
