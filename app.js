@@ -22,7 +22,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.6.0";
+const APP_VERSION = "v1.5.1";
 const employees = {
   admin:{name:"管理者",role:"管理者",pin:"1234"},
   manager:{name:"山田 太郎",role:"管理職",pin:"2222"},
@@ -93,12 +93,7 @@ function showLogin(message=null){
 function showMain(){
   $("#loginView").classList.add("hidden");
   $("#mainView").classList.remove("hidden");
-  if(new URLSearchParams(location.search).get("view")==="tv"){
-    activateTvMode();
-  }else{
-    document.body.classList.remove("tv-mode");
-    render("dashboard");
-  }
+  render("dashboard");
 }
 async function verifyEmployee(user){
   const employeeRef=doc(firestore,"employees",user.uid);
@@ -158,7 +153,6 @@ onAuthStateChanged(auth,async user=>{
 
 $("#backButton").addEventListener("click",()=>render("projects"));
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>render(b.dataset.nav)));
-$("#tvModeButton")?.addEventListener("click",()=>{const url=new URL(location.href);url.searchParams.set("view","tv");location.href=url.toString();});
 
 const menuItems=[
   ["projects","案件管理","案件一覧・進捗・担当者","▣"],
@@ -384,43 +378,6 @@ function schedulePage(){
  return `<h1 class="page-title">スケジュール</h1><p class="page-subtitle">社員ごとの予定と空き時間を確認します</p><div class="schedule-toolbar"><div class="view-switch"><button data-sview="day" class="${scheduleView==="day"?"active":""}">1日一覧</button><button data-sview="gantt" class="${scheduleView==="gantt"?"active":""}">タイムライン</button><button data-sview="month" class="${scheduleView==="month"?"active":""}">月間</button></div><button class="small-primary" id="addSchedule">＋ 予定追加</button></div>
  <div class="schedule-date-control"><button id="prevDay">‹</button><input type="date" id="scheduleDate" value="${selectedScheduleDate}"><button id="nextDay">›</button><label><input type="checkbox" id="showAllStaff" ${showAllStaff?"checked":""}>全社員</label></div>
  ${scheduleView==="day"?`<div class="schedule-day">${selectedScheduleDate.replaceAll("-"," / ")}</div>${dayEvents}`:scheduleView==="gantt"?`<div class="gantt-legend"><span><i class="legend-working"></i>勤務中</span><span><i class="legend-away"></i>それ以外</span><small>表示 ${String(Math.floor(timelineStart/60)).padStart(2,"0")}:00〜${String(Math.floor(timelineEnd/60)).padStart(2,"0")}:00</small></div><div class="schedule-color-legend"><span>赤 全体</span><span>緑 研修</span><span>青 日中作業</span><span>黄 閉店後作業</span></div>${gantt}`:calendar}`;
-}
-let tvRefreshTimer=null, tvClockTimer=null;
-function activateTvMode(){
- document.body.classList.add("tv-mode");
- renderTvSchedule();
- if(tvRefreshTimer)clearInterval(tvRefreshTimer);
- if(tvClockTimer)clearInterval(tvClockTimer);
- // localStorage is refreshed for other tabs in this same browser. Cross-device sync is not implemented in this source version.
- tvRefreshTimer=setInterval(()=>{
-   try{const latest=JSON.parse(localStorage.getItem(STORAGE_KEY));if(latest)db={...db,...latest};}catch{}
-   renderTvSchedule();
- },15000);
- tvClockTimer=setInterval(()=>{const el=document.getElementById("tvClock");if(el)el.textContent=new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});},1000);
-}
-function renderTvSchedule(){
- const date=new Date().toLocaleDateString("sv-SE");
- const now=new Date();
- const currentMinutes=now.getHours()*60+now.getMinutes();
- const start=0,end=30*60,total=end-start;
- const x=mins=>Math.max(0,Math.min(100,(mins-start)/total*100));
- const ticks=[];for(let h=0;h<=30;h+=2)ticks.push(h);
- const active=getActiveEmployees();
- const staff=active.filter(e=>e.role!=="事務担当");
- const events=(db.schedules||[]).filter(s=>s.date===date);
- const currentLine=date===now.toLocaleDateString("sv-SE")&&currentMinutes>=start&&currentMinutes<=end?`<i class="tv-now-line" style="left:${x(currentMinutes)}%"><b>現在</b></i>`:"";
- const rows=staff.map(emp=>{
-   const mine=events.filter(s=>s.person===emp.name);
-   const bars=mine.map(s=>{
-     let a=s.allDay?9*60:timeToMinutes(s.time),b=s.allDay?18*60:timeToMinutes(s.endTime||s.time);
-     if(!s.allDay&&b<=a)b+=1440;
-     const left=x(a),right=x(b);if(right<=left)return "";
-     return `<div class="tv-event" style="left:${left}%;width:${Math.max(.5,right-left)}%;background:${scheduleColor(s)}"><strong>${esc(s.title)}</strong><small>${esc(s.site||"")}</small></div>`;
-   }).join("");
-   return `<div class="tv-gantt-row"><div class="tv-employee">${esc(emp.name)}</div><div class="tv-track">${ticks.map(h=>`<i class="tv-grid-line" style="left:${x(h*60)}%"></i>`).join("")}${bars}${currentLine}</div></div>`;
- }).join("");
- const content=document.getElementById("content");
- content.innerHTML=`<section class="tv-screen"><header class="tv-header"><div><div class="tv-brand">CANNABIS <span>DAILY SCHEDULE</span></div><div class="tv-date">${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${"日月火水木金土"[now.getDay()]}）</div></div><div class="tv-clock" id="tvClock">${now.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</div></header><div class="tv-timeline-head"><div class="tv-employee">社員</div><div class="tv-track">${ticks.map(h=>`<b style="left:${x(h*60)}%">${String(h).padStart(2,"0")}:00</b>`).join("")}</div></div><div class="tv-rows">${rows||`<div class="tv-empty">社員マスターに表示対象の社員が登録されていません</div>`}</div><footer class="tv-footer"><span>当日予定</span><span>自動再描画：15秒ごと</span><span>翌日02:00 → 26:00</span></footer></section>`;
 }
 function employeeAttendance(){
  return (db.attendance||[]).filter(x=>x.uid===currentUser.uid).sort((a,b)=>(b.workDate||"").localeCompare(a.workDate||""));
