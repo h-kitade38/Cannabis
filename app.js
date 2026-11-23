@@ -404,7 +404,7 @@ function renderTvSchedule(){
  const currentMinutes=now.getHours()*60+now.getMinutes();
  const start=0,end=30*60,total=end-start;
  const x=mins=>Math.max(0,Math.min(100,(mins-start)/total*100));
- const ticks=[];for(let h=0;h<=30;h+=2ticks.push(h);
+ const ticks=[];for(let h=0;h<=30;h+=2)ticks.push(h);
  const active=getActiveEmployees();
  const staff=active.filter(e=>e.role!=="事務担当");
  const events=(db.schedules||[]).filter(s=>s.date===date);
