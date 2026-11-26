@@ -22,7 +22,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.6.0";
+const APP_VERSION = "v1.6.1";
 const IS_TV_MODE = new URLSearchParams(location.search).get("tv") === "1";
 const SHARED_DATA_REF = doc(firestore,"appData","shared");
 let unsubscribeSharedData = null;
@@ -261,7 +261,7 @@ function render(page){
 function dashboardPage(){
   const today=localToday();
   const todays=db.schedules.filter(s=>s.date===today).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
-  const activeProjects=db.projects.filter(p=>p.workflowStage!=="archived"&&!p.salesProcessed);
+  const activeProjects=db.projects.filter(p=>p.workflowStage!=="archived");
   const stages=[{key:"material",name:"① 材料"},{key:"wip",name:"② 仕掛品"},{key:"goods",name:"③ 商品"}];
   const month=new Date().toISOString().slice(0,7), year=month.slice(0,4);
   const booked=db.projects.filter(p=>p.salesMonth===month||(!p.salesMonth&&month===new Date().toISOString().slice(0,7)&&(Number(p.pq||0)!==0||Number(p.vq||0)!==0)));
@@ -290,48 +290,40 @@ function getTvWorkDate(now){
   return hasOngoingOvernight?previousDate:actualDate;
 }
 function tvSchedulePage(){
-  const now=new Date();
-  const today=now.toLocaleDateString("sv-SE");
-  const workDate=getTvWorkDate(now);
+  const now=new Date(),today=now.toLocaleDateString("sv-SE"),workDate=getTvWorkDate(now);
   const staff=["全体",...getActiveEmployees().map(e=>e.name)];
   const dayItems=db.schedules.filter(s=>s.date===workDate).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
-  const start=0,end=30*60,total=end-start;
-  const ticks=Array.from({length:16},(_,i)=>i*2);
+  let start=9*60,end=18*60;
+  dayItems.forEach(s=>{const a=s.allDay?9*60:timeToMinutes(s.time);let b=s.allDay?18*60:timeToMinutes(s.endTime||s.time);if(!s.allDay&&b<=a)b+=1440;start=Math.min(start,a);end=Math.max(end,b)});
+  start=Math.max(0,Math.floor(start/60)*60);end=Math.min(36*60,Math.ceil(end/60)*60);if(end<=start)end=start+60;
+  const total=end-start,tickStart=Math.ceil(start/120)*120;
+  const ticks=[start,...Array.from({length:Math.max(0,Math.floor((end-tickStart)/120)+1)},(_,i)=>tickStart+i*120).filter(v=>v>start&&v<end),end];
   const pos=m=>Math.max(0,Math.min(100,(m-start)/total*100));
-  const nowMinutes=now.getHours()*60+now.getMinutes()+(workDate!==today?1440:0);
-  const currentLine=pos(nowMinutes);
+  const nowMinutes=now.getHours()*60+now.getMinutes()+(workDate!==today?1440:0),currentLine=pos(nowMinutes);
+  const tickLabel=m=>`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
   const rows=staff.map(name=>{
-    const mine=dayItems.filter(s=>s.person===name);
-    const lanes=[];
-    mine.filter(s=>!s.allDay).forEach(s=>{
-      const a=timeToMinutes(s.time);let b=timeToMinutes(s.endTime||s.time);if(b<=a)b+=1440;
-      let lane=0;while(lanes[lane]?.some(x=>a<x.end&&b>x.start))lane++;
-      (lanes[lane]??=[]).push({start:a,end:b,s});s._tvLane=lane;
-    });
-    const bars=mine.map(s=>{
-      const a=s.allDay?9*60:timeToMinutes(s.time);
-      let b=s.allDay?18*60:timeToMinutes(s.endTime||s.time);if(!s.allDay&&b<=a)b+=1440;
-      const left=pos(a),right=pos(b);
-      if(right<=left)return "";
-      return `<div class="tv-gantt-bar" style="left:${left}%;width:${right-left}%;top:${8+((s._tvLane||0)*43)}px;background:${scheduleColor(s)}"><strong>${esc(s.title)}</strong><span>${esc(s.project||"")}</span><small>${esc(formatTimeDisplay(a))}–${esc(formatTimeDisplay(b))}</small></div>`;
-    }).join("");
-    return `<div class="tv-gantt-row" style="min-height:${Math.max(76,lanes.length*43+22)}px"><div class="tv-employee">${esc(name)}</div><div class="tv-track" style="min-height:${Math.max(76,lanes.length*43+22)}px">${ticks.map(h=>`<i style="left:${pos(h*60)}%"></i>`).join("")}${bars}<div class="tv-now-line" style="left:${currentLine}%"></div></div></div>`;
+    const mine=dayItems.filter(s=>s.person===name),lanes=[];
+    mine.filter(s=>!s.allDay).forEach(s=>{const a=timeToMinutes(s.time);let b=timeToMinutes(s.endTime||s.time);if(b<=a)b+=1440;let lane=0;while(lanes[lane]?.some(x=>a<x.end&&b>x.start))lane++;(lanes[lane]??=[]).push({start:a,end:b,s});s._tvLane=lane});
+    const rowHeight=Math.max(76,lanes.length*43+22);
+    const bars=mine.map(s=>{const a=s.allDay?9*60:timeToMinutes(s.time);let b=s.allDay?18*60:timeToMinutes(s.endTime||s.time);if(!s.allDay&&b<=a)b+=1440;const left=pos(a),right=pos(b);if(right<=left)return "";return `<div class="tv-gantt-bar" style="left:${left}%;width:${right-left}%;top:${8+((s._tvLane||0)*43)}px;background:${scheduleColor(s)}"><strong>${esc(s.title)}</strong><span>${esc(s.project||"")}</span><small>${esc(formatTimeDisplay(a))}–${esc(formatTimeDisplay(b))}</small></div>`}).join("");
+    return `<div class="tv-gantt-row" style="min-height:${rowHeight}px"><div class="tv-employee">${esc(name)}</div><div class="tv-track" style="min-height:${rowHeight}px">${ticks.map(t=>`<i style="left:${pos(t)}%"></i>`).join("")}${bars}<div class="tv-now-line" style="left:${currentLine}%"></div></div></div>`;
   }).join("");
   return `<div class="tv-header"><div><div class="tv-brand">CANNABIS <span>業務スケジュール</span></div><div class="tv-date" id="tvDate">${now.toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"})} <span class="tv-work-date">勤務日 ${workDate}</span></div></div><div class="tv-clock" id="tvClock">${now.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</div></div>
-  <div class="tv-board"><div class="tv-axis-head"><div>担当者</div><div class="tv-axis">${ticks.map(h=>`<span style="left:${pos(h*60)}%">${String(h).padStart(2,"0")}:00</span>`).join("")}</div></div>
-  <div class="tv-rows">${rows||`<div class="tv-empty">社員が登録されていません</div>`}</div></div>
-  <div class="tv-footer"><span>表示時間 00:00〜30:00（翌日06:00）</span><span id="syncStatus">Firebase同期中…</span><button id="tvFullscreen">全画面表示</button></div>`;
+  <div class="tv-board" data-tv-start="${start}" data-tv-end="${end}"><div class="tv-axis-head"><div>担当者</div><div class="tv-axis">${ticks.map(t=>`<span style="left:${pos(t)}%">${tickLabel(t)}</span>`).join("")}</div></div><div class="tv-rows">${rows||`<div class="tv-empty">社員が登録されていません</div>`}</div></div>
+  <div class="tv-footer"><span>表示時間 ${tickLabel(start)}〜${tickLabel(end)}</span><span id="syncStatus">Firebase同期中…</span><button id="tvFullscreen">全画面表示</button></div>`;
 }
 function updateTvClock(){
   if(!document.body.classList.contains("tv-mode"))return;
   const now=new Date(),date=now.toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"});
   const clock=$("#tvClock"),dateEl=$("#tvDate");
   if(clock)clock.textContent=now.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
-  if(dateEl)dateEl.textContent=date;
+  if(dateEl)dateEl.innerHTML=`${date} <span class="tv-work-date">勤務日 ${getTvWorkDate(now)}</span>`;
   const today=now.toLocaleDateString("sv-SE");
   const workDate=getTvWorkDate(now);
   if(today!==tvLastDate || workDate!==tvLastWorkDate){tvLastDate=today;tvLastWorkDate=workDate;render("tv");return;}
-  const pct=(now.getHours()*60+now.getMinutes()+(workDate!==today?1440:0))/(30*60)*100;
+  const board=$(".tv-board"),start=Number(board?.dataset.tvStart??540),end=Number(board?.dataset.tvEnd??1080);
+  const minutes=now.getHours()*60+now.getMinutes()+(workDate!==today?1440:0);
+  const pct=Math.max(0,Math.min(100,(minutes-start)/(end-start)*100));
   $$(".tv-now-line").forEach(line=>line.style.left=`${pct}%`);
 }
 function allowedMenu(key){
@@ -351,13 +343,13 @@ function menuPage(){return `<h1 class="page-title">メニュー</h1><p class="pa
 function projectCard(p){return `<article class="record-card"><div class="record-top"><div><div class="record-title">${esc(p.name)}</div><div class="record-meta">${esc(p.customer)} ・ ${esc(p.date||"日程未定")}<br>${esc(p.person||"担当未設定")} ／ ${esc(p.site||"現場未設定")}</div></div><span class="status ${p.status==="完了"?"done":p.status==="予定"?"wait":""}">${esc(p.status)}</span></div><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button></div></article>`}
 function projectsPage(){
  const stages=[{key:"material",name:"① 材料"},{key:"wip",name:"② 仕掛品"},{key:"goods",name:"③ 商品"}];
- const active=db.projects.filter(p=>p.workflowStage!=="archived"&&!p.salesProcessed);
+ const active=db.projects.filter(p=>p.workflowStage!=="archived");
  const all=db.projects.filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
- const list=all.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>`<article class="project-list-card"><button class="project-list-main" data-detail-project="${p.id}"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")} ・ ${esc(p.date||"日程未定")}</small><small>${esc(p.workflowStage==="archived"||p.salesProcessed?"完了":p.workflowStage==="wip"?"仕掛品":p.workflowStage==="goods"?"商品":"材料")} ／ ${p.salesProcessed?"売上処理済":"進行中"}</small></button><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button></div></article>`).join("");
+ const list=all.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>`<article class="project-list-card"><button class="project-list-main" data-detail-project="${p.id}"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")} ・ ${esc(p.date||"日程未定")}</small><small>${esc(p.workflowStage==="archived"?"完了":p.workflowStage==="wip"?"仕掛品":p.workflowStage==="goods"?"商品":"材料")} ／ ${p.salesProcessed?"売上処理済":"進行中"}</small></button><div class="record-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button></div></article>`).join("");
  return `<h1 class="page-title">案件管理</h1><p class="page-subtitle">会社盤で進捗を確認し、全案件一覧から過去の案件も検索できます</p>
  <div class="project-mode-switch"><button data-project-mode="board" class="${projectPageMode==="board"?"active":""}">会社盤</button><button data-project-mode="list" class="${projectPageMode==="list"?"active":""}">全案件一覧（${db.projects.length}）</button></div>
  <div class="toolbar"><input class="search-input" id="searchBox" placeholder="案件名・顧客名で検索"><button class="small-primary" id="addProject">＋ 新規</button></div>
- ${projectPageMode==="list"?`<div class="project-list">${list||`<div class="empty-state">案件がありません</div>`}</div>`:`<div class="kanban-board">${stages.map(stage=>{const items=active.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key).filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));return `<section class="kanban-column kanban-${stage.key}"><header><strong>${stage.name}</strong><b>${items.length}</b></header><div class="kanban-cards">${items.length?items.map(p=>`<article class="kanban-card"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")}</small><small>${esc(p.person||"担当未設定")} ・ ${esc(p.date||"日程未定")}</small><div class="kanban-card-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button>${stage.key==="material"?`<div class="prep-checks material-checks"><label><input type="checkbox" data-project-progress="estimateApproved" data-id="${p.id}" ${p.estimateApproved?"checked":""}>見積承認</label></div>`:""}${stage.key==="wip"?`<div class="prep-checks"><label><input type="checkbox" data-prep="docs" data-id="${p.id}" ${p.prepDocs?"checked":""}>申請書類</label><label><input type="checkbox" data-prep="date" data-id="${p.id}" ${p.prepDate?"checked":""}>日程調整</label><button class="text-btn" data-stage-project="${p.id}" data-stage="goods" ${p.prepDocs&&p.prepDate?"":"disabled"}>準備完了 →</button></div>`:""}${stage.key==="goods"?`<div class="goods-checks"><label><input type="checkbox" data-goods-check="workCompleted" data-id="${p.id}" ${p.workCompleted?"checked":""}>作業完了</label><label><input type="checkbox" data-goods-check="salesProcessed" data-id="${p.id}" ${p.salesProcessed?"checked":""}>売上処理</label></div>`:""}</div></article>`).join(""):`<div class="kanban-empty">案件なし</div>`}</div></section>`}).join("")}</div>`}`;
+ ${projectPageMode==="list"?`<div class="project-list">${list||`<div class="empty-state">案件がありません</div>`}</div>`:`<div class="kanban-board">${stages.map(stage=>{const items=active.filter(p=>(p.workflowStage||((p.status==="完了")?"goods":"material"))===stage.key).filter(p=>[p.name,p.customer,p.site,p.person].join(" ").toLowerCase().includes(searchTerm.toLowerCase()));return `<section class="kanban-column kanban-${stage.key}"><header><strong>${stage.name}</strong><b>${items.length}</b></header><div class="kanban-cards">${items.length?items.map(p=>`<article class="kanban-card"><strong>${esc(p.name)}</strong><small>${esc(p.customer||"")}</small><small>${esc(p.person||"担当未設定")} ・ ${esc(p.date||"日程未定")}</small><div class="kanban-card-actions"><button class="text-btn" data-detail-project="${p.id}">詳細</button>${stage.key==="material"?`<div class="prep-checks material-checks"><label><input type="checkbox" data-project-progress="estimateApproved" data-id="${p.id}" ${p.estimateApproved?"checked":""}>見積承認</label><button class="text-btn" data-stage-project="${p.id}" data-stage="wip" ${p.estimateApproved?"":"disabled"}>投入 →</button></div>`:""}${stage.key==="wip"?`<div class="prep-checks"><label><input type="checkbox" data-prep="docs" data-id="${p.id}" ${p.prepDocs?"checked":""}>申請書類</label><label><input type="checkbox" data-prep="date" data-id="${p.id}" ${p.prepDate?"checked":""}>日程調整</label><button class="text-btn" data-stage-project="${p.id}" data-stage="goods" ${p.prepDocs&&p.prepDate?"":"disabled"}>完成 →</button></div>`:""}${stage.key==="goods"?`<div class="goods-checks"><label><input type="checkbox" data-goods-check="workCompleted" data-id="${p.id}" ${p.workCompleted?"checked":""}>作業完了</label><label><input type="checkbox" data-goods-check="salesProcessed" data-id="${p.id}" ${p.salesProcessed?"checked":""} ${p.workCompleted?"":"disabled"}>売上処理</label><button class="text-btn" data-stage-project="${p.id}" data-stage="archived" ${p.workCompleted&&p.salesProcessed?"":"disabled"}>販売 →</button></div>`:""}</div></article>`).join(""):`<div class="kanban-empty">案件なし</div>`}</div></section>`}).join("")}</div>`}`;
 }
 function yenShort(n){return Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function stracSvg(pq,vq,mq,f,g){
@@ -522,23 +514,26 @@ function isEmployeeWorking(name){
  return (db.attendance||[]).some(x=>x.uid===currentUser.uid&&x.workDate===selectedScheduleDate&&x.type==="work"&&x.clockIn&&!x.clockOut);
 }
 function attendancePage(){
- const records=employeeAttendance();
- const open=records.find(x=>x.type==="work"&&x.clockIn&&!x.clockOut);
- const balances=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};
- const monthRecords=records.filter(x=>(x.workDate||"").startsWith(attendanceMonth));
- const history=monthRecords.map(r=>{
-   const timeLabel=t=>{if(!t)return "—";const d=new Date(t);let h=d.getHours();if(r.workDate&&d.toLocaleDateString("sv-SE")!==r.workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
-   const typeLabel=r.type==="work"?"勤務":r.type==="paid"?"有給取得":r.type==="comp"?"代休取得":"代休登録";
-   const detail=r.type==="work"?`出勤 ${timeLabel(r.clockIn)} ／ 退勤 ${timeLabel(r.clockOut)}`:r.type==="comp_credit"?`代休を ${Number(r.days||1)}日 登録`:`${Number(r.days||1)}日 取得`;
-   return `<article class="attendance-record"><div><strong>${esc(r.workDate)}　${typeLabel}</strong><small>${detail}</small>${r.note?`<small>${esc(r.note)}</small>`:""}</div><div class="attendance-record-actions"><button class="text-btn" data-edit-attendance="${r.id}">変更</button><button class="text-btn danger-text" data-delete-attendance="${r.id}">削除</button></div></article>`;
+ const records=employeeAttendance(),open=records.find(x=>x.type==="work"&&x.clockIn&&!x.clockOut),balances=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};
+ const [year,month]=attendanceMonth.split("-").map(Number),daysInMonth=new Date(year,month,0).getDate();
+ const monthRows=Array.from({length:daysInMonth},(_,i)=>{
+  const day=i+1,workDate=`${attendanceMonth}-${String(day).padStart(2,"0")}`,date=new Date(year,month-1,day,12),dayRecords=records.filter(r=>r.workDate===workDate),work=dayRecords.find(r=>r.type==="work"),leave=dayRecords.filter(r=>r.type==="paid"||r.type==="comp");
+  const timeLabel=t=>{if(!t)return "—";const d=new Date(t);let h=d.getHours();if(d.toLocaleDateString("sv-SE")!==workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
+  let status="記録なし",detail="出退勤の記録がありません",state="missing";
+  if(work){detail=`出勤 ${timeLabel(work.clockIn)} ／ 退勤 ${timeLabel(work.clockOut)}`;if(work.clockIn&&!work.clockOut){status="退勤漏れ";state="incomplete"}else{status="完了";state="complete"}}
+  else if(leave.length){status=leave.map(r=>r.type==="paid"?"有給":"代休").join("・");detail=leave.map(r=>`${Number(r.days||1)}日`).join("・");state="leave"}
+  else if(dayRecords.some(r=>r.type==="comp_credit")){status="代休登録";detail="代休を登録済み";state="leave"}
+  const weekend=date.getDay()===0||date.getDay()===6;
+  return `<article class="attendance-day-row ${weekend?"is-weekend":""} ${state}"><div class="attendance-day-date"><strong>${month}/${day}</strong><small>${["日","月","火","水","木","金","土"][date.getDay()]}</small></div><div class="attendance-day-detail"><strong>${detail}</strong><small>${status}</small></div><span class="attendance-day-status ${state}">${status}</span></article>`;
  }).join("");
+ const history=records.map(r=>{const timeLabel=t=>{if(!t)return "—";const d=new Date(t);let h=d.getHours();if(r.workDate&&d.toLocaleDateString("sv-SE")!==r.workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};const typeLabel=r.type==="work"?"勤務":r.type==="paid"?"有給取得":r.type==="comp"?"代休取得":"代休登録";const detail=r.type==="work"?`出勤 ${timeLabel(r.clockIn)} ／ 退勤 ${timeLabel(r.clockOut)}`:r.type==="comp_credit"?`代休を ${Number(r.days||1)}日 登録`:`${Number(r.days||1)}日 取得`;return `<article class="attendance-record"><div><strong>${esc(r.workDate)}　${typeLabel}</strong><small>${detail}</small>${r.note?`<small>${esc(r.note)}</small>`:""}</div><div class="attendance-record-actions"><button class="text-btn" data-edit-attendance="${r.id}">変更</button><button class="text-btn danger-text" data-delete-attendance="${r.id}">削除</button></div></article>`}).join("");
  return `<h1 class="page-title">勤怠管理</h1><p class="page-subtitle">本人の出退勤・休暇を記録します</p>
  <section class="attendance-status"><div class="attendance-status-top"><span>現在の状態</span><strong class="${open?"working":"not-working"}">${open?"勤務中":"退勤中"}</strong></div><div class="attendance-identity">${esc(currentUser.name)}</div><div class="attendance-actions">${open?`<button class="primary-btn" id="clockOutButton">退勤する</button>`:`<button class="primary-btn" id="clockInButton">出勤する</button>`}</div>${open?`<small class="attendance-hint">出勤時刻：${new Date(open.clockIn).toLocaleString("ja-JP")}</small>`:""}</section>
  <section class="attendance-balance"><div><span>有給残日数</span><strong>${Number(balances.paid||0)}日</strong></div><div><span>代休残日数</span><strong>${Number(balances.comp||0)}日</strong></div></section>
  <div class="attendance-actions attendance-leave-actions"><button class="secondary-btn" id="addPaidLeave">有給を取得</button><button class="secondary-btn" id="addCompLeave">代休を取得</button><button class="secondary-btn" id="creditCompLeave">＋ 代休を登録</button></div>
- <div class="section-heading"><h2>勤怠履歴</h2><input type="month" id="attendanceMonth" value="${attendanceMonth}" aria-label="対象月"></div>
- <div class="attendance-history">${history||`<div class="empty-state">この月の勤怠記録はありません</div>`}</div>
- <p class="settings-note">履歴の変更・削除は本人が行えます。削除した記録も誤操作の確認用に削除履歴として保持します。この版では端末内保存で、社員間・端末間の共有はまだ行われません。</p>`;
+ <div class="section-heading attendance-month-heading"><h2>月間勤怠</h2><input type="month" id="attendanceMonth" value="${attendanceMonth}" aria-label="対象月"></div><div class="attendance-month-list">${monthRows}</div>
+ <details class="attendance-history-panel"><summary>履歴を見る（変更・削除）</summary><div class="attendance-history">${history||`<div class="empty-state">勤怠履歴はありません</div>`}</div></details>
+ <p class="settings-note">土日を含む月内すべての日を表示します。「記録なし」は出退勤・休暇の記録がない日です。履歴から過去の記録を変更・削除できます。</p>`;
 }
 function punchAttendance(kind){
  const now=new Date(),stamp=now.toISOString(),today=now.toLocaleDateString("sv-SE");
@@ -682,10 +677,8 @@ function bindPageEvents(){
 function updateProjectProgress(id,key,checked,returnPage='projectDetail'){
  const p=db.projects.find(x=>x.id===id);if(!p)return;
  p[key]=checked;
- if(key==='estimateApproved'){if(checked){p.workflowStage='wip';}else{p.estimateApproved=false;p.prepDocs=false;p.prepDate=false;p.workCompleted=false;p.salesProcessed=false;p.workflowStage='material';saveDB();render(returnPage);toast('見積承認を解除し、材料へ戻しました');return;}}
- if(key==='workCompleted'&&!checked){p.prepDocs=false;p.prepDate=false;p.salesProcessed=false;p.workflowStage='wip';saveDB();render(returnPage);toast('作業未完了に戻し、仕掛品へ戻しました');return;}
- if(key==='salesProcessed'&&checked&&!p.workCompleted){p.salesProcessed=false;toast('作業完了後に売上処理をチェックしてください');}
- if(key==='salesProcessed'&&checked&&p.workCompleted)p.workflowStage='archived';
+ if(key==='estimateApproved'&&!checked){p.prepDocs=false;p.prepDate=false;p.workCompleted=false;p.salesProcessed=false;p.workflowStage='material';}
+ if(key==='workCompleted'&&!checked){p.salesProcessed=false;}
  if(key==='salesProcessed'&&!checked&&p.workflowStage==='archived')p.workflowStage='goods';
  if(['prepDocs','prepDate'].includes(key)&&!checked&&p.workflowStage==='goods')p.workflowStage='wip';
  saveDB();render(returnPage);toast('進捗状況を更新しました');
@@ -702,7 +695,7 @@ function updateProjectProgress(id,key,checked,returnPage='projectDetail'){
  $("#deleteCurrentProject")?.addEventListener("click",()=>deleteProject(Number(window.selectedId)));
  $("#editCurrentCustomer")?.addEventListener("click",()=>openCustomerForm(Number(window.selectedId)));
 }
-function moveProjectStage(id,stage){const p=db.projects.find(x=>x.id===id);if(!p)return;if(stage==='goods'&&!(p.prepDocs&&p.prepDate)){toast('申請書類・日程調整を完了してください');return}p.workflowStage=stage;if(stage==='wip')p.estimateApproved=true;saveDB();render('projects');toast('案件を移動しました')}
+function moveProjectStage(id,stage){const p=db.projects.find(x=>x.id===id);if(!p)return;if(stage==='wip'&&!p.estimateApproved){toast('見積承認を完了してください');return}if(stage==='goods'&&!(p.prepDocs&&p.prepDate)){toast('申請書類・日程調整を完了してください');return}if(stage==='archived'&&!(p.workCompleted&&p.salesProcessed)){toast('作業完了・売上処理の両方を完了してください');return}if(!['wip','goods','archived'].includes(stage))return;p.workflowStage=stage;saveDB();render('projects');toast(stage==='archived'?'会社盤から案件を消し込みました':'案件を移動しました')}
 function openDialog(title,fields,record,onSave){
  editing={record,onSave};$("#dialogTitle").textContent=title;$("#dialogFields").innerHTML=fields.map(f=>fieldHTML(f,record?.[f.key])).join("");$("#formDialog").showModal();
 }

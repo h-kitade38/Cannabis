@@ -291,3 +291,52 @@ body.tv-mode .sync-status{color:#9fb8aa}
 }
 
 .tv-work-date{font-size:12px;color:#7f9e8e;margin-left:14px;letter-spacing:.03em}
+
+
+/* v1.6.1 focused refinements: project workflow, solid green header, TV white theme, monthly attendance */
+html{background:#0d4937}
+.topbar{background-color:#0d4937;background-image:none;backdrop-filter:none;-webkit-backdrop-filter:none;isolation:isolate}
+.prep-checks button:disabled,.goods-checks button:disabled{opacity:.38;cursor:not-allowed;pointer-events:none}
+.goods-checks input:disabled{opacity:.4;cursor:not-allowed}
+.attendance-month-heading{align-items:center;gap:12px}
+.attendance-month-heading input{max-width:155px;border:1px solid var(--line);border-radius:9px;padding:8px 9px;background:#fff;color:var(--ink);font:inherit;font-size:12px}
+.attendance-month-list{display:flex;flex-direction:column;gap:6px}
+.attendance-day-row{display:grid;grid-template-columns:62px minmax(0,1fr) auto;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-height:56px}
+.attendance-day-row.is-weekend{background:#fafbfa}
+.attendance-day-date{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.attendance-day-date strong{font-size:13px}
+.attendance-day-date small{font-size:10px;color:var(--muted)}
+.attendance-day-row.is-weekend .attendance-day-date small{color:#b45a56}
+.attendance-day-detail{display:flex;flex-direction:column;gap:3px;min-width:0}
+.attendance-day-detail strong{font-size:11px;font-weight:600;overflow-wrap:anywhere}
+.attendance-day-detail small{font-size:10px;color:var(--muted)}
+.attendance-day-status{font-size:10px;font-weight:800;white-space:nowrap;color:#718078}
+.attendance-day-status.missing{color:#b94b48}
+.attendance-day-status.incomplete{color:#b7791f}
+.attendance-day-status.complete{color:#24714f}
+.attendance-day-status.leave{color:#54718c}
+.attendance-history-panel{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:0 13px}
+.attendance-history-panel summary{padding:12px 0;color:var(--green2);font-size:11px;font-weight:800;cursor:pointer;list-style:none}
+.attendance-history-panel summary::-webkit-details-marker{display:none}
+.attendance-history-panel summary:after{content:"＋";float:right;color:var(--muted)}
+.attendance-history-panel[open] summary:after{content:"－"}
+.attendance-history-panel .attendance-history{padding-bottom:10px}
+/* Office monitor: bright white base while retaining CANNABIS green accents */
+body.tv-mode{background:#f5f7f5;color:#1d2924}
+body.tv-mode .tv-header{border-bottom:1px solid #dce5df}
+body.tv-mode .tv-brand{color:#0d4937}
+body.tv-mode .tv-brand span{color:#718078}
+body.tv-mode .tv-date{color:#53645a}
+body.tv-mode .tv-clock{color:#0d4937}
+body.tv-mode .tv-axis-head{background:#eaf1ec;border-bottom:1px solid #d6e1d9}
+body.tv-mode .tv-axis-head>div:first-child{color:#244b39}
+body.tv-mode .tv-axis span{color:#53645a}
+body.tv-mode .tv-gantt-row{border-bottom:1px solid #e3eae5}
+body.tv-mode .tv-employee{background:#edf3ef;color:#244b39;border-right:1px solid #dce5df}
+body.tv-mode .tv-track{background:repeating-linear-gradient(to right,transparent 0,transparent calc(6.6666667% - 1px),#e3eae5 calc(6.6666667% - 1px),#e3eae5 6.6666667%)}
+body.tv-mode .tv-track>i{background:#e1e8e3}
+body.tv-mode .tv-gantt-bar{box-shadow:0 1px 4px rgba(20,50,35,.12)}
+body.tv-mode .tv-empty{color:#718078}
+body.tv-mode .tv-footer{color:#64756b}
+body.tv-mode .tv-footer button{background:#0d4937;color:#fff;border:1px solid #0d4937}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0d4937;z-index:4;pointer-events:none}
