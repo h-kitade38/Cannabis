@@ -22,7 +22,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const STORAGE_KEY = "cannabis-prototype-v1";
-const APP_VERSION = "v1.6.1";
+const APP_VERSION = "v1.6.2";
 const IS_TV_MODE = new URLSearchParams(location.search).get("tv") === "1";
 const SHARED_DATA_REF = doc(firestore,"appData","shared");
 let unsubscribeSharedData = null;
@@ -517,23 +517,38 @@ function attendancePage(){
  const records=employeeAttendance(),open=records.find(x=>x.type==="work"&&x.clockIn&&!x.clockOut),balances=db.leaveBalances[currentUser.uid]||{paid:0,comp:0};
  const [year,month]=attendanceMonth.split("-").map(Number),daysInMonth=new Date(year,month,0).getDate();
  const monthRows=Array.from({length:daysInMonth},(_,i)=>{
-  const day=i+1,workDate=`${attendanceMonth}-${String(day).padStart(2,"0")}`,date=new Date(year,month-1,day,12),dayRecords=records.filter(r=>r.workDate===workDate),work=dayRecords.find(r=>r.type==="work"),leave=dayRecords.filter(r=>r.type==="paid"||r.type==="comp");
-  const timeLabel=t=>{if(!t)return "—";const d=new Date(t);let h=d.getHours();if(d.toLocaleDateString("sv-SE")!==workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
-  let status="記録なし",detail="出退勤の記録がありません",state="missing";
-  if(work){detail=`出勤 ${timeLabel(work.clockIn)} ／ 退勤 ${timeLabel(work.clockOut)}`;if(work.clockIn&&!work.clockOut){status="退勤漏れ";state="incomplete"}else{status="完了";state="complete"}}
-  else if(leave.length){status=leave.map(r=>r.type==="paid"?"有給":"代休").join("・");detail=leave.map(r=>`${Number(r.days||1)}日`).join("・");state="leave"}
-  else if(dayRecords.some(r=>r.type==="comp_credit")){status="代休登録";detail="代休を登録済み";state="leave"}
+  const day=i+1,workDate=`${attendanceMonth}-${String(day).padStart(2,"0")}`,date=new Date(year,month-1,day,12),dayRecords=records.filter(r=>r.workDate===workDate),work=dayRecords.find(r=>r.type==="work"),leave=dayRecords.filter(r=>r.type==="paid"||r.type==="comp"),credits=dayRecords.filter(r=>r.type==="comp_credit");
+  const timeLabel=t=>{if(!t)return "";const d=new Date(t);let h=d.getHours();if(d.toLocaleDateString("sv-SE")!==workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
+  const details=[];
+  if(work){details.push(`出勤 ${timeLabel(work.clockIn)}${work.clockOut?` ／ 退勤 ${timeLabel(work.clockOut)}`:" ／ 退勤未入力"}`)}
+  if(leave.length)details.push(leave.map(r=>`${r.type==="paid"?"有給":"代休"} ${Number(r.days||1)}日`).join("・"));
+  if(credits.length)details.push(credits.map(r=>`代休登録 ${Number(r.days||1)}日`).join("・"));
+  const state=work?(work.clockIn&&!work.clockOut?"incomplete":"complete"):(leave.length||credits.length?"leave":"missing");
+  const actions=dayRecords.length?dayRecords.map(r=>`<span class="attendance-day-action-set"><button class="text-btn" data-edit-attendance="${r.id}">編集</button><button class="text-btn danger-text" data-delete-attendance="${r.id}">削除</button></span>`).join(""):`<button class="text-btn" data-new-attendance-date="${workDate}">入力</button>`;
   const weekend=date.getDay()===0||date.getDay()===6;
-  return `<article class="attendance-day-row ${weekend?"is-weekend":""} ${state}"><div class="attendance-day-date"><strong>${month}/${day}</strong><small>${["日","月","火","水","木","金","土"][date.getDay()]}</small></div><div class="attendance-day-detail"><strong>${detail}</strong><small>${status}</small></div><span class="attendance-day-status ${state}">${status}</span></article>`;
+  return `<article class="attendance-day-row ${weekend?"is-weekend":""} ${state}"><div class="attendance-day-date"><strong>${month}/${day}</strong><small>${["日","月","火","水","木","金","土"][date.getDay()]}</small></div><div class="attendance-day-detail"><strong>${details.map(esc).join("<br>")}</strong></div><div class="attendance-day-actions">${actions}</div></article>`;
  }).join("");
- const history=records.map(r=>{const timeLabel=t=>{if(!t)return "—";const d=new Date(t);let h=d.getHours();if(r.workDate&&d.toLocaleDateString("sv-SE")!==r.workDate)h+=24;return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};const typeLabel=r.type==="work"?"勤務":r.type==="paid"?"有給取得":r.type==="comp"?"代休取得":"代休登録";const detail=r.type==="work"?`出勤 ${timeLabel(r.clockIn)} ／ 退勤 ${timeLabel(r.clockOut)}`:r.type==="comp_credit"?`代休を ${Number(r.days||1)}日 登録`:`${Number(r.days||1)}日 取得`;return `<article class="attendance-record"><div><strong>${esc(r.workDate)}　${typeLabel}</strong><small>${detail}</small>${r.note?`<small>${esc(r.note)}</small>`:""}</div><div class="attendance-record-actions"><button class="text-btn" data-edit-attendance="${r.id}">変更</button><button class="text-btn danger-text" data-delete-attendance="${r.id}">削除</button></div></article>`}).join("");
  return `<h1 class="page-title">勤怠管理</h1><p class="page-subtitle">本人の出退勤・休暇を記録します</p>
  <section class="attendance-status"><div class="attendance-status-top"><span>現在の状態</span><strong class="${open?"working":"not-working"}">${open?"勤務中":"退勤中"}</strong></div><div class="attendance-identity">${esc(currentUser.name)}</div><div class="attendance-actions">${open?`<button class="primary-btn" id="clockOutButton">退勤する</button>`:`<button class="primary-btn" id="clockInButton">出勤する</button>`}</div>${open?`<small class="attendance-hint">出勤時刻：${new Date(open.clockIn).toLocaleString("ja-JP")}</small>`:""}</section>
  <section class="attendance-balance"><div><span>有給残日数</span><strong>${Number(balances.paid||0)}日</strong></div><div><span>代休残日数</span><strong>${Number(balances.comp||0)}日</strong></div></section>
  <div class="attendance-actions attendance-leave-actions"><button class="secondary-btn" id="addPaidLeave">有給を取得</button><button class="secondary-btn" id="addCompLeave">代休を取得</button><button class="secondary-btn" id="creditCompLeave">＋ 代休を登録</button></div>
  <div class="section-heading attendance-month-heading"><h2>月間勤怠</h2><input type="month" id="attendanceMonth" value="${attendanceMonth}" aria-label="対象月"></div><div class="attendance-month-list">${monthRows}</div>
- <details class="attendance-history-panel"><summary>履歴を見る（変更・削除）</summary><div class="attendance-history">${history||`<div class="empty-state">勤怠履歴はありません</div>`}</div></details>
- <p class="settings-note">土日を含む月内すべての日を表示します。「記録なし」は出退勤・休暇の記録がない日です。履歴から過去の記録を変更・削除できます。</p>`;
+ <p class="settings-note">土日を含む月内すべての日を表示します。各日の「入力」から未打刻日を登録し、「編集」「削除」から記録を修正できます。</p>`;
+}
+function createAttendanceForDate(workDate){
+ openDialog("勤怠記録を追加",[
+  {key:"workDate",label:"勤務日",type:"date",required:true,default:workDate},
+  {key:"inTime",label:"出勤時刻（4桁）",type:"time4",required:true},
+  {key:"outTime",label:"退勤時刻（4桁・未退勤は空欄）",type:"time4"},
+  {key:"note",label:"備考"}
+ ],{workDate,inTime:"0900",outTime:"1800"},data=>{
+  const parse=(d,t)=>{if(!t)return null;const v=String(t).replace(/\D/g,"");if(v.length!==4||Number(v.slice(0,2))>36||Number(v.slice(2))>59)return undefined;const base=new Date(`${d}T00:00:00`);base.setMinutes(Number(v.slice(0,2))*60+Number(v.slice(2)));return base.toISOString()};
+  const ci=parse(data.workDate,data.inTime),co=parse(data.workDate,data.outTime);
+  if(!data.workDate||ci===null||ci===undefined||co===undefined||(ci&&co&&new Date(co)<=new Date(ci))){toast("勤務日・時刻を確認してください");return}
+  const stamp=new Date().toISOString();
+  db.attendance.push({id:Date.now(),uid:currentUser.uid,employeeName:currentUser.name,type:"work",workDate:data.workDate,clockIn:ci,clockOut:co, note:data.note||"",createdAt:stamp,updatedAt:stamp,audit:[]});
+  saveDB();$("#formDialog").close();attendanceMonth=data.workDate.slice(0,7);render("attendance");toast("勤怠記録を追加しました");
+ });
 }
 function punchAttendance(kind){
  const now=new Date(),stamp=now.toISOString(),today=now.toLocaleDateString("sv-SE");
@@ -646,6 +661,7 @@ function bindPageEvents(){
  $$('[data-delete-attendance]').forEach(b=>b.addEventListener('click',()=>deleteAttendance(b.dataset.deleteAttendance)));
  $("#attendanceMonth")?.addEventListener("change",e=>{attendanceMonth=e.target.value||new Date().toISOString().slice(0,7);render("attendance")});
  $$('[data-edit-attendance]').forEach(b=>b.addEventListener('click',()=>editAttendance(b.dataset.editAttendance)));
+ $$('[data-new-attendance-date]').forEach(b=>b.addEventListener('click',()=>createAttendanceForDate(b.dataset.newAttendanceDate)));
 
  $$("[data-go]").forEach(b=>b.addEventListener("click",()=>render(b.dataset.go)));
  $("#logoutButton")?.addEventListener("click",async()=>{await signOut(auth);currentUser=null;showLogin()});
@@ -700,7 +716,7 @@ function openDialog(title,fields,record,onSave){
  editing={record,onSave};$("#dialogTitle").textContent=title;$("#dialogFields").innerHTML=fields.map(f=>fieldHTML(f,record?.[f.key])).join("");$("#formDialog").showModal();
 }
 function fieldHTML(f,value){const v=value??f.default??"";let input;
- if(f.type==="time4"){const digits=String(v).replace(/\D/g,"");input=`<input name="${f.key}" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例：1900" value="${esc(digits)}">`}
+ if(f.type==="time4"){const digits=String(v).replace(/\D/g,"");input=`<input name="${f.key}" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例：1900" value="${esc(digits)}" ${f.required?"required":""}>`}
  else if(f.type==="textarea")input=`<textarea name="${f.key}" ${f.required?"required":""}>${esc(v)}</textarea>`;
  else if(f.type==="select")input=`<select name="${f.key}">${f.options.map(o=>`<option ${o===v?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
  else input=`<input name="${f.key}" type="${f.type||"text"}" value="${esc(v)}" ${f.required?"required":""} ${f.step?`step="${f.step}"`:""}>`;
